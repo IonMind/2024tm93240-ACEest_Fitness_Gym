@@ -1,13 +1,15 @@
 import pytest
 
-from app import PROGRAMS, app
+from app import CLIENTS, PROGRAMS, app
 
 
 @pytest.fixture()
 def client():
     app.config.update(TESTING=True)
+    CLIENTS.clear()
     with app.test_client() as test_client:
         yield test_client
+    CLIENTS.clear()
 
 
 def test_home_page_lists_all_programs(client):
@@ -61,6 +63,57 @@ def test_client_profile_requires_name_and_program(client):
 
     assert response.status_code == 400
     assert b"Client name and program are required." in response.data
+
+
+def test_multiple_clients_are_listed_with_notes(client):
+    client.post(
+        "/client",
+        data={
+            "name": "Asha",
+            "age": "30",
+            "weight": "70",
+            "program": "Muscle Gain (MG)",
+            "adherence": "85",
+            "notes": "Increase weekly volume",
+        },
+    )
+    response = client.post(
+        "/client",
+        data={
+            "name": "Ravi",
+            "age": "25",
+            "weight": "65",
+            "program": "Beginner (BG)",
+            "adherence": "60",
+            "notes": "Focus on form",
+        },
+    )
+
+    assert response.status_code == 200
+    assert b"Asha" in response.data
+    assert b"Ravi" in response.data
+    assert b"Focus on form" in response.data
+
+
+def test_clients_can_be_exported_as_csv(client):
+    client.post(
+        "/client",
+        data={
+            "name": "Asha",
+            "age": "30",
+            "weight": "70",
+            "program": "Muscle Gain (MG)",
+            "adherence": "85",
+            "notes": "Coach note",
+        },
+    )
+
+    response = client.get("/clients/export.csv")
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/csv"
+    assert b"Name,Age,Weight,Program,Adherence,Notes" in response.data
+    assert b"Asha,30,70,Muscle Gain (MG),85,Coach note" in response.data
 
 
 def test_unknown_program_returns_not_found(client):

@@ -8,7 +8,7 @@ Version 1.1 is a Flask web presentation of the ACEest program catalog with a sim
 
 It also displays the original gym reference metrics: capacity, area, and break-even membership count.
 
-The client profile form accepts a name, age, weight, program, and weekly adherence percentage. Estimated calories are calculated from the client weight and the selected program's calorie factor. Client data is not persisted yet.
+The client profile form accepts a name, age, weight, program, weekly adherence percentage, and coach notes. Estimated calories are calculated from the client weight and the selected program's calorie factor. Saved clients are displayed in a progress table and can be exported as CSV. Client data is currently held in memory and is not persisted between application restarts.
 
 ## Run locally
 

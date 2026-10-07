@@ -97,6 +97,14 @@
         .reset-link { color: var(--muted); }
         .error { margin: 1rem 0 0; color: #a12d2d; font-weight: 700; }
         .saved { margin: 1rem 0 0; color: #218c5a; font-weight: 700; }
+        .client-list { margin-top: 2rem; padding: 1.25rem; overflow-x: auto; }
+        .client-list-header { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
+        .client-list-header a { color: var(--accent); font-weight: 700; }
+        table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+        th, td { border-bottom: 1px solid var(--line); padding: .7rem .5rem; text-align: left; vertical-align: top; }
+        th { color: var(--muted); font-size: .75rem; text-transform: uppercase; }
+        .progress { min-width: 100px; height: .5rem; margin-top: .25rem; background: #e8edef; border-radius: 4px; }
+        .progress span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 
         @media (max-width: 700px) {
             .container { width: min(100% - 2rem, 1100px); }
@@ -165,6 +173,10 @@
                         <label for="adherence">Weekly adherence (%)</label>
                         <input id="adherence" name="adherence" type="number" min="0" max="100" value="{{ client.adherence if client else 0 }}">
                     </div>
+                    <div class="field">
+                        <label for="notes">Coach notes</label>
+                        <input id="notes" name="notes" value="{{ client.notes if client else '' }}">
+                    </div>
                 </div>
                 <div class="form-actions">
                     <button type="submit">Save client</button>
@@ -173,6 +185,34 @@
             </form>
             {% if error %}<p class="error">{{ error }}</p>{% endif %}
             {% if client and client.calories is defined %}<p class="saved">Estimated calories: {{ client.calories }} kcal</p>{% endif %}
+        </section>
+
+        <section class="detail client-list">
+            <div class="client-list-header">
+                <h2>Client list</h2>
+                <a href="{{ url_for('export_clients') }}">Export CSV</a>
+            </div>
+            {% if clients %}
+                <table>
+                    <thead>
+                        <tr><th>Name</th><th>Age</th><th>Weight</th><th>Program</th><th>Adherence</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for saved_client in clients %}
+                            <tr>
+                                <td>{{ saved_client.name }}</td>
+                                <td>{{ saved_client.age }}</td>
+                                <td>{{ saved_client.weight }} kg</td>
+                                <td>{{ saved_client.program }}</td>
+                                <td>{{ saved_client.adherence }}%<div class="progress"><span style="width: {{ saved_client.adherence|int }}%"></span></div></td>
+                                <td>{{ saved_client.notes }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="section-heading">No clients saved yet.</p>
+            {% endif %}
         </section>
 
         {% if selected_program %}
