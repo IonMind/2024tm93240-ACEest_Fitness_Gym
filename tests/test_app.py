@@ -129,6 +129,22 @@ def test_weekly_progress_is_saved(client):
     assert b"Weekly progress logged." in response.data
 
 
+def test_progress_page_displays_adherence_history(client):
+    client.post(
+        "/client",
+        data={"name": "Asha", "program": "Beginner (BG)", "adherence": "80"},
+    )
+    client.post("/progress", data={"name": "Asha", "adherence": "80"})
+    client.post("/progress", data={"name": "Asha", "adherence": "95"})
+
+    response = client.get("/client/Asha/progress")
+
+    assert response.status_code == 200
+    assert b"Weekly adherence progress" in response.data
+    assert b"80%" in response.data
+    assert b"95%" in response.data
+
+
 def test_clients_can_be_exported_as_csv(client):
     client.post(
         "/client",
