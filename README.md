@@ -1,6 +1,6 @@
 # ACEest Fitness & Gym
 
-Version 1.1 is a Flask web presentation of the ACEest program catalog with a simple client profile workflow. It provides three fitness profiles with their weekly workout and nutrition plans:
+Version 2.0.1 is a Flask web application for the ACEest program catalog with SQLite-backed client and weekly progress management. It provides three fitness profiles with their weekly workout and nutrition plans:
 
 - Fat Loss (FL)
 - Muscle Gain (MG)
@@ -8,7 +8,7 @@ Version 1.1 is a Flask web presentation of the ACEest program catalog with a sim
 
 It also displays the original gym reference metrics: capacity, area, and break-even membership count.
 
-The client profile form accepts a name, age, weight, program, weekly adherence percentage, and coach notes. Estimated calories are calculated from the client weight and the selected program's calorie factor. Saved clients are displayed in a progress table and can be exported as CSV. Client data is currently held in memory and is not persisted between application restarts.
+The client profile form accepts a name, age, weight, program, weekly adherence percentage, and coach notes. Estimated calories are calculated from the client weight and the selected program's calorie factor. Saved clients and weekly progress are persisted in SQLite and clients can be exported as CSV.
 
 ## Run locally
 

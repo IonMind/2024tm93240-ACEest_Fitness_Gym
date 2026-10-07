@@ -97,6 +97,7 @@
         .reset-link { color: var(--muted); }
         .error { margin: 1rem 0 0; color: #a12d2d; font-weight: 700; }
         .saved { margin: 1rem 0 0; color: #218c5a; font-weight: 700; }
+        .status { margin: 1rem 0 0; color: #218c5a; font-weight: 700; }
         .client-list { margin-top: 2rem; padding: 1.25rem; overflow-x: auto; }
         .client-list-header { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
         .client-list-header a { color: var(--accent); font-weight: 700; }
@@ -183,8 +184,31 @@
                     <a class="reset-link" href="{{ url_for('home') }}">Reset</a>
                 </div>
             </form>
+            <form class="form-actions" method="post" action="{{ url_for('load_client') }}">
+                <label for="load-name">Load saved client</label>
+                <select id="load-name" name="name" required>
+                    <option value="">Choose a client</option>
+                    {% for saved_client in clients %}
+                        <option value="{{ saved_client.name }}">{{ saved_client.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Load client</button>
+            </form>
+            <form class="form-actions" method="post" action="{{ url_for('save_progress') }}">
+                <input type="hidden" name="name" value="{{ client.name if client else '' }}">
+                <input type="hidden" name="adherence" value="{{ client.adherence if client else 0 }}">
+                <button type="submit">Save weekly progress</button>
+            </form>
             {% if error %}<p class="error">{{ error }}</p>{% endif %}
             {% if client and client.calories is defined %}<p class="saved">Estimated calories: {{ client.calories }} kcal</p>{% endif %}
+            {% if status %}<p class="status">{{ status }}</p>{% endif %}
+            {% if summary %}<pre class="detail">CLIENT PROFILE
+--------------
+Name: {{ summary.name }}
+Age: {{ summary.age or '-' }}
+Weight: {{ summary.weight or '-' }} kg
+Program: {{ summary.program }}
+Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
         </section>
 
         <section class="detail client-list">
