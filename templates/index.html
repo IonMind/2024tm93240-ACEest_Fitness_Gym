@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ACEest Functional Fitness</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #263238;
+            --muted: #65727a;
+            --paper: #f7f8f8;
+            --panel: #ffffff;
+            --line: #d9e0e3;
+            --accent: #b57b19;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: Arial, sans-serif;
+        }
+
+        header {
+            background: var(--panel);
+            border-bottom: 1px solid var(--line);
+            padding: 2rem 1.5rem;
+        }
+
+        .container {
+            width: min(1100px, calc(100% - 3rem));
+            margin: 0 auto;
+        }
+
+        header p {
+            margin: 0 0 .4rem;
+            color: var(--accent);
+            font-size: .8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        h1, h2, h3 { margin-top: 0; }
+        h1 { margin-bottom: .4rem; font-size: 2rem; }
+        header .subtitle { margin: 0; color: var(--muted); line-height: 1.5; }
+
+        main { padding: 2rem 0 3rem; }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric, .program-card, .detail {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 4px;
+        }
+
+        .metric { padding: .9rem 1rem; }
+        .metric strong { display: block; color: var(--muted); font-size: .75rem; text-transform: uppercase; }
+        .metric span { display: block; margin-top: .35rem; font-size: 1.15rem; }
+
+        .section-heading { margin-bottom: 1rem; }
+        .section-heading p { margin: 0; color: var(--muted); line-height: 1.5; }
+
+        .programs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .program-card { padding: 1rem 1.2rem; border-left: 5px solid var(--program-color); }
+        .program-card h3 { margin-bottom: .75rem; font-size: 1.15rem; }
+        .program-card a { color: var(--accent); font-weight: 700; text-decoration: none; }
+        .program-card a:hover { color: var(--accent); }
+
+        .detail { margin-top: 2rem; padding: 1.25rem; }
+        .detail h2 { margin-bottom: 1rem; }
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .detail h3 { color: var(--muted); font-size: .8rem; text-transform: uppercase; }
+        .detail pre { margin: 0; white-space: pre-wrap; font: 1rem/1.7 Arial, sans-serif; }
+
+        @media (max-width: 700px) {
+            .container { width: min(100% - 2rem, 1100px); }
+            .metrics, .programs, .detail-grid { grid-template-columns: 1fr; }
+            header { padding: 2rem 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <p>ACEest Fitness &amp; Gym</p>
+            <h1>Functional fitness, clearly planned.</h1>
+            <p class="subtitle">Choose a program to view its weekly workout and nutrition plan.</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="metrics" aria-label="Gym metrics">
+            <div class="metric"><strong>Capacity</strong><span>{{ metrics.capacity }}</span></div>
+            <div class="metric"><strong>Area</strong><span>{{ metrics.area }}</span></div>
+            <div class="metric"><strong>Break-even</strong><span>{{ metrics.break_even }}</span></div>
+        </section>
+
+        <section>
+            <div class="section-heading">
+                <h2>Program profiles</h2>
+                <p>Select a profile to view the version 1 plan.</p>
+            </div>
+            <div class="programs">
+                {% for name, program in programs.items() %}
+                    <article class="program-card" style="--program-color: {{ program.color }}">
+                        <h3>{{ name }}</h3>
+                        <a href="{{ url_for('show_program', program_name=name) }}">View plan &rarr;</a>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if selected_program %}
+            <section class="detail" aria-live="polite">
+                <h2>{{ selected_name }}</h2>
+                <div class="detail-grid">
+                    <div>
+                        <h3>Weekly workout chart</h3>
+                        <pre>{{ selected_program.workout }}</pre>
+                    </div>
+                    <div>
+                        <h3>Daily nutrition plan</h3>
+                        <pre>{{ selected_program.diet }}</pre>
+                    </div>
+                </div>
+            </section>
+        {% endif %}
+    </main>
+</body>
+</html>
