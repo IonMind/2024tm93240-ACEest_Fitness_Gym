@@ -1,6 +1,6 @@
 # ACEest Fitness & Gym
 
-Version 2.2.1 is a Flask web application for the ACEest program catalog with SQLite-backed client and weekly progress management. It adds a browser-readable adherence history and progress chart for each saved client.
+Version 2.2.4 is a Flask web application for the ACEest program catalog with SQLite-backed client, progress, workout, exercise, and body-metric management. It includes adherence history, workout history, BMI classification, client goals, and progress views.
 
 - Fat Loss (FL)
 - Muscle Gain (MG)

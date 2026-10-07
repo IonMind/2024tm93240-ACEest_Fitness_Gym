@@ -145,6 +145,66 @@ def test_progress_page_displays_adherence_history(client):
     assert b"95%" in response.data
 
 
+def test_client_goals_and_bmi_are_available(client):
+    client.post(
+        "/client",
+        data={
+            "name": "Asha",
+            "height": "170",
+            "weight": "70",
+            "program": "Beginner (BG)",
+            "target_weight": "65",
+            "target_adherence": "90",
+        },
+    )
+
+    response = client.get("/client/Asha/bmi")
+
+    assert response.status_code == 200
+    assert b">24.2</strong>" in response.data
+    assert b"Normal" in response.data
+
+
+def test_workout_and_metrics_history_are_available(client):
+    client.post(
+        "/client",
+        data={"name": "Asha", "program": "Beginner (BG)"},
+    )
+    workout_response = client.post(
+        "/workouts",
+        data={
+            "client_name": "Asha",
+            "date": "2026-10-07",
+            "workout_type": "Strength",
+            "duration_min": "60",
+            "exercise_name": "Air Squat",
+            "sets": "3",
+            "reps": "10",
+            "exercise_weight": "20",
+            "notes": "Good form",
+        },
+    )
+    metrics_response = client.post(
+        "/metrics",
+        data={
+            "client_name": "Asha",
+            "date": "2026-10-07",
+            "weight": "70",
+            "waist": "80",
+            "bodyfat": "20",
+        },
+    )
+
+    history_response = client.get("/client/Asha/workouts")
+
+    assert workout_response.status_code == 200
+    assert metrics_response.status_code == 200
+    assert history_response.status_code == 200
+    assert b"Air Squat" in history_response.data
+    assert b"Good form" in history_response.data
+    assert b"Latest body metrics" in history_response.data
+
+
 def test_clients_can_be_exported_as_csv(client):
     client.post(
         "/client",
