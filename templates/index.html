@@ -106,6 +106,11 @@
         th { color: var(--muted); font-size: .75rem; text-transform: uppercase; }
         .progress { min-width: 100px; height: .5rem; margin-top: .25rem; background: #e8edef; border-radius: 4px; }
         .progress span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+        .progress-link { color: var(--accent); font-weight: 700; }
+        .chart { display: flex; align-items: end; gap: 1rem; min-height: 180px; padding: 1rem 0 0; border-bottom: 1px solid var(--line); }
+        .chart-column { display: flex; flex: 1; flex-direction: column; align-items: center; gap: .35rem; height: 160px; justify-content: end; }
+        .chart-bar { width: min(44px, 80%); min-height: 2px; background: var(--accent); border-radius: 3px 3px 0 0; }
+        .chart-value, .chart-label { color: var(--muted); font-size: .75rem; }
 
         @media (max-width: 700px) {
             .container { width: min(100% - 2rem, 1100px); }
@@ -219,7 +224,7 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
             {% if clients %}
                 <table>
                     <thead>
-                        <tr><th>Name</th><th>Age</th><th>Weight</th><th>Program</th><th>Adherence</th><th>Notes</th></tr>
+                        <tr><th>Name</th><th>Age</th><th>Weight</th><th>Program</th><th>Adherence</th><th>Notes</th><th>History</th></tr>
                     </thead>
                     <tbody>
                         {% for saved_client in clients %}
@@ -230,6 +235,7 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
                                 <td>{{ saved_client.program }}</td>
                                 <td>{{ saved_client.adherence }}%<div class="progress"><span style="width: {{ saved_client.adherence|int }}%"></span></div></td>
                                 <td>{{ saved_client.notes }}</td>
+                                <td><a class="progress-link" href="{{ url_for('show_progress', name=saved_client.name) }}">View progress</a></td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -238,6 +244,21 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
                 <p class="section-heading">No clients saved yet.</p>
             {% endif %}
         </section>
+
+        {% if progress_entries %}
+            <section class="detail">
+                <h2>Weekly adherence progress</h2>
+                <div class="chart" aria-label="Weekly adherence chart">
+                    {% for entry in progress_entries %}
+                        <div class="chart-column">
+                            <span class="chart-value">{{ entry.adherence }}%</span>
+                            <div class="chart-bar" style="height: {{ entry.adherence|int }}%"></div>
+                            <span class="chart-label">{{ entry.week }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
 
         {% if selected_program %}
             <section class="detail" aria-live="polite">

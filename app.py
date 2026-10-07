@@ -88,6 +88,7 @@ def page_context(**values):
         "status": None,
         "clients": client_rows(),
         "summary": None,
+        "progress_entries": [],
     }
     context.update(values)
     return context
@@ -182,7 +183,47 @@ def save_progress():
             "INSERT INTO progress (client_name, week, adherence) VALUES (?, ?, ?)",
             (name, datetime.now().strftime("Week %U - %Y"), int(adherence or 0)),
         )
-    return render_template("index.html", **page_context(status="Weekly progress logged."))
+    with database_connection() as connection:
+        client = connection.execute("SELECT * FROM clients WHERE name = ?", (name,)).fetchone()
+    progress_entries = progress_for(name)
+    return render_template("index.html", **page_context(
+        client=dict(client) if client else None,
+        selected_program=PROGRAMS.get(client["program"]) if client else None,
+        selected_name=client["program"] if client else None,
+        progress_entries=progress_entries,
+        status="Weekly progress logged.",
+    ))
+
+
+def progress_for(name):
+    initialize_database()
+    with database_connection() as connection:
+        return [
+            dict(row)
+            for row in connection.execute(
+                "SELECT week, adherence FROM progress WHERE client_name = ? ORDER BY id",
+                (name,),
+            )
+        ]
+
+
+@app.get("/client/<path:name>/progress")
+def show_progress(name):
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute("SELECT * FROM clients WHERE name = ?", (name,)).fetchone()
+
+    if row is None:
+        abort(404)
+
+    client = dict(row)
+    return render_template("index.html", **page_context(
+        client=client,
+        selected_program=PROGRAMS[client["program"]],
+        selected_name=client["program"],
+        summary=client,
+        progress_entries=progress_for(name),
+    ))
 
 
 @app.get("/clients/export.csv")
