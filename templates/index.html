@@ -111,6 +111,9 @@
         .chart-column { display: flex; flex: 1; flex-direction: column; align-items: center; gap: .35rem; height: 160px; justify-content: end; }
         .chart-bar { width: min(44px, 80%); min-height: 2px; background: var(--accent); border-radius: 3px 3px 0 0; }
         .chart-value, .chart-label { color: var(--muted); font-size: .75rem; }
+        .history { margin-top: 1rem; overflow-x: auto; }
+        .history-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+        .history-actions a { color: var(--accent); font-weight: 700; }
 
         @media (max-width: 700px) {
             .container { width: min(100% - 2rem, 1100px); }
@@ -167,6 +170,10 @@
                         <input id="weight" name="weight" type="number" min="0" step="0.1" value="{{ client.weight if client else '' }}">
                     </div>
                     <div class="field">
+                        <label for="height">Height (cm)</label>
+                        <input id="height" name="height" type="number" min="0" step="0.1" value="{{ client.height if client else '' }}">
+                    </div>
+                    <div class="field">
                         <label for="program">Program</label>
                         <select id="program" name="program" required>
                             <option value="">Choose a program</option>
@@ -182,6 +189,14 @@
                     <div class="field">
                         <label for="notes">Coach notes</label>
                         <input id="notes" name="notes" value="{{ client.notes if client else '' }}">
+                    </div>
+                    <div class="field">
+                        <label for="target_weight">Target weight (kg)</label>
+                        <input id="target_weight" name="target_weight" type="number" min="0" step="0.1" value="{{ client.target_weight if client else '' }}">
+                    </div>
+                    <div class="field">
+                        <label for="target_adherence">Target adherence (%)</label>
+                        <input id="target_adherence" name="target_adherence" type="number" min="0" max="100" value="{{ client.target_adherence if client else '' }}">
                     </div>
                 </div>
                 <div class="form-actions">
@@ -235,7 +250,7 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
                                 <td>{{ saved_client.program }}</td>
                                 <td>{{ saved_client.adherence }}%<div class="progress"><span style="width: {{ saved_client.adherence|int }}%"></span></div></td>
                                 <td>{{ saved_client.notes }}</td>
-                                <td><a class="progress-link" href="{{ url_for('show_progress', name=saved_client.name) }}">View progress</a></td>
+                                <td><a class="progress-link" href="{{ url_for('show_progress', name=saved_client.name) }}">Progress</a><br><a class="progress-link" href="{{ url_for('show_workouts', name=saved_client.name) }}">Workouts</a><br><a class="progress-link" href="{{ url_for('show_bmi', name=saved_client.name) }}">BMI</a></td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -244,6 +259,55 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
                 <p class="section-heading">No clients saved yet.</p>
             {% endif %}
         </section>
+
+        <section class="detail profile-form">
+            <h2>Log workout</h2>
+            <form method="post" action="{{ url_for('save_workout') }}">
+                <div class="form-grid">
+                    <div class="field"><label for="workout-client">Client</label><input id="workout-client" name="client_name" value="{{ client.name if client else '' }}" required></div>
+                    <div class="field"><label for="workout-date">Date</label><input id="workout-date" name="date" type="date" required></div>
+                    <div class="field"><label for="workout-type">Workout type</label><select id="workout-type" name="workout_type" required><option value="">Choose type</option><option>Strength</option><option>Hypertrophy</option><option>Conditioning</option><option>Mixed</option><option>Mobility</option></select></div>
+                    <div class="field"><label for="duration">Duration (min)</label><input id="duration" name="duration_min" type="number" min="0"></div>
+                    <div class="field"><label for="exercise">Exercise</label><input id="exercise" name="exercise_name"></div>
+                    <div class="field"><label for="sets">Sets</label><input id="sets" name="sets" type="number" min="0"></div>
+                    <div class="field"><label for="reps">Reps</label><input id="reps" name="reps" type="number" min="0"></div>
+                    <div class="field"><label for="exercise-weight">Exercise weight (kg)</label><input id="exercise-weight" name="exercise_weight" type="number" min="0" step="0.1"></div>
+                    <div class="field"><label for="workout-notes">Notes</label><input id="workout-notes" name="notes"></div>
+                </div>
+                <div class="form-actions"><button type="submit">Log workout</button></div>
+            </form>
+        </section>
+
+        <section class="detail profile-form">
+            <h2>Log body metrics</h2>
+            <form method="post" action="{{ url_for('save_metrics') }}">
+                <div class="form-grid">
+                    <div class="field"><label for="metrics-client">Client</label><input id="metrics-client" name="client_name" value="{{ client.name if client else '' }}" required></div>
+                    <div class="field"><label for="metrics-date">Date</label><input id="metrics-date" name="date" type="date" required></div>
+                    <div class="field"><label for="metrics-weight">Weight (kg)</label><input id="metrics-weight" name="weight" type="number" min="0" step="0.1"></div>
+                    <div class="field"><label for="waist">Waist (cm)</label><input id="waist" name="waist" type="number" min="0" step="0.1"></div>
+                    <div class="field"><label for="bodyfat">Body fat (%)</label><input id="bodyfat" name="bodyfat" type="number" min="0" step="0.1"></div>
+                </div>
+                <div class="form-actions"><button type="submit">Log metrics</button></div>
+            </form>
+        </section>
+
+        {% if workouts %}
+            <section class="detail">
+                <h2>Workout history</h2>
+                <div class="history"><table><thead><tr><th>Date</th><th>Type</th><th>Duration</th><th>Exercise</th><th>Sets/Reps</th><th>Notes</th></tr></thead><tbody>
+                    {% for workout in workouts %}<tr><td>{{ workout.date }}</td><td>{{ workout.workout_type }}</td><td>{{ workout.duration_min or '-' }} min</td><td>{{ workout.exercise_name or '-' }}</td><td>{{ workout.sets or '-' }} / {{ workout.reps or '-' }}</td><td>{{ workout.notes }}</td></tr>{% endfor %}
+                </tbody></table></div>
+            </section>
+        {% endif %}
+
+        {% if latest_metric %}
+            <section class="detail"><h2>Latest body metrics</h2><p>{{ latest_metric.date }} | Weight: {{ latest_metric.weight or '-' }} kg | Waist: {{ latest_metric.waist or '-' }} cm | Body fat: {{ latest_metric.bodyfat or '-' }}%</p></section>
+        {% endif %}
+
+        {% if bmi %}
+            <section class="detail"><h2>BMI and risk information</h2><p>BMI: <strong>{{ bmi }}</strong> ({{ bmi_category }})</p></section>
+        {% endif %}
 
         {% if progress_entries %}
             <section class="detail">

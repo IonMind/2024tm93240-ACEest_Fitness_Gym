@@ -62,8 +62,42 @@ def initialize_database():
                 week TEXT NOT NULL,
                 adherence INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS workouts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_name TEXT NOT NULL,
+                date TEXT NOT NULL,
+                workout_type TEXT NOT NULL,
+                duration_min INTEGER,
+                notes TEXT DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS exercises (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workout_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                sets INTEGER,
+                reps INTEGER,
+                weight REAL
+            );
+            CREATE TABLE IF NOT EXISTS metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_name TEXT NOT NULL,
+                date TEXT NOT NULL,
+                weight REAL,
+                waist REAL,
+                bodyfat REAL
+            );
             """
         )
+        client_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(clients)")
+        }
+        for column, definition in {
+            "height": "REAL",
+            "target_weight": "REAL",
+            "target_adherence": "INTEGER",
+        }.items():
+            if column not in client_columns:
+                connection.execute(f"ALTER TABLE clients ADD COLUMN {column} {definition}")
 
 
 def client_rows():
@@ -89,6 +123,10 @@ def page_context(**values):
         "clients": client_rows(),
         "summary": None,
         "progress_entries": [],
+        "workouts": [],
+        "latest_metric": None,
+        "bmi": None,
+        "bmi_category": None,
     }
     context.update(values)
     return context
@@ -104,10 +142,13 @@ def save_client():
     client = {
         "name": request.form.get("name", "").strip(),
         "age": request.form.get("age", "").strip(),
+        "height": request.form.get("height", "").strip(),
         "weight": request.form.get("weight", "").strip(),
         "program": request.form.get("program", "").strip(),
         "adherence": request.form.get("adherence", "0").strip(),
         "notes": request.form.get("notes", "").strip(),
+        "target_weight": request.form.get("target_weight", "").strip(),
+        "target_adherence": request.form.get("target_adherence", "").strip(),
     }
 
     if not client["name"] or not client["program"]:
@@ -133,14 +174,23 @@ def save_client():
     with database_connection() as connection:
         connection.execute(
             """
-            INSERT INTO clients (name, age, weight, program, calories, adherence, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO clients
+                (name, age, height, weight, program, calories, adherence, notes,
+                 target_weight, target_adherence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
-                age=excluded.age, weight=excluded.weight, program=excluded.program,
-                calories=excluded.calories, adherence=excluded.adherence, notes=excluded.notes
+                age=excluded.age, height=excluded.height, weight=excluded.weight,
+                program=excluded.program, calories=excluded.calories,
+                adherence=excluded.adherence, notes=excluded.notes,
+                target_weight=excluded.target_weight,
+                target_adherence=excluded.target_adherence
             """,
-            (client["name"], client["age"] or None, client["weight"] or None,
-             client["program"], calories, client["adherence"] or 0, client["notes"]),
+            (
+                client["name"], client["age"] or None, client["height"] or None,
+                client["weight"] or None, client["program"], calories,
+                client["adherence"] or 0, client["notes"],
+                client["target_weight"] or None, client["target_adherence"] or None,
+            ),
         )
     return render_template("index.html", **page_context(
         selected_program=selected_program,
@@ -195,6 +245,67 @@ def save_progress():
     ))
 
 
+@app.post("/workouts")
+def save_workout():
+    workout = {
+        "client_name": request.form.get("client_name", "").strip(),
+        "date": request.form.get("date", "").strip(),
+        "workout_type": request.form.get("workout_type", "").strip(),
+        "duration_min": request.form.get("duration_min", "").strip(),
+        "notes": request.form.get("notes", "").strip(),
+        "exercise_name": request.form.get("exercise_name", "").strip(),
+        "sets": request.form.get("sets", "").strip(),
+        "reps": request.form.get("reps", "").strip(),
+        "weight": request.form.get("exercise_weight", "").strip(),
+    }
+    if not workout["client_name"] or not workout["date"] or not workout["workout_type"]:
+        return render_template("index.html", **page_context(error="Client, date, and workout type are required.")), 400
+
+    initialize_database()
+    with database_connection() as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO workouts (client_name, date, workout_type, duration_min, notes)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                workout["client_name"], workout["date"], workout["workout_type"],
+                workout["duration_min"] or None, workout["notes"],
+            ),
+        )
+        if workout["exercise_name"]:
+            connection.execute(
+                "INSERT INTO exercises (workout_id, name, sets, reps, weight) VALUES (?, ?, ?, ?, ?)",
+                (
+                    cursor.lastrowid, workout["exercise_name"], workout["sets"] or None,
+                    workout["reps"] or None, workout["weight"] or None,
+                ),
+            )
+    return render_template("index.html", **page_context(status="Workout logged successfully."))
+
+
+@app.post("/metrics")
+def save_metrics():
+    metric = {
+        "client_name": request.form.get("client_name", "").strip(),
+        "date": request.form.get("date", "").strip(),
+        "weight": request.form.get("weight", "").strip(),
+        "waist": request.form.get("waist", "").strip(),
+        "bodyfat": request.form.get("bodyfat", "").strip(),
+    }
+    if not metric["client_name"] or not metric["date"]:
+        return render_template("index.html", **page_context(error="Client and date are required.")), 400
+
+    initialize_database()
+    with database_connection() as connection:
+        connection.execute(
+            "INSERT INTO metrics (client_name, date, weight, waist, bodyfat) VALUES (?, ?, ?, ?, ?)",
+            (metric["client_name"], metric["date"], metric["weight"] or None,
+             metric["waist"] or None, metric["bodyfat"] or None),
+        )
+    return render_template("index.html", **page_context(status="Body metrics logged successfully."))
+
+
 def progress_for(name):
     initialize_database()
     with database_connection() as connection:
@@ -205,6 +316,36 @@ def progress_for(name):
                 (name,),
             )
         ]
+
+
+def workouts_for(name):
+    initialize_database()
+    with database_connection() as connection:
+        return [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT workouts.date, workouts.workout_type, workouts.duration_min,
+                       workouts.notes, exercises.name AS exercise_name,
+                       exercises.sets, exercises.reps, exercises.weight AS exercise_weight
+                FROM workouts
+                LEFT JOIN exercises ON exercises.workout_id = workouts.id
+                WHERE workouts.client_name = ?
+                ORDER BY workouts.date DESC, workouts.id DESC
+                """,
+                (name,),
+            )
+        ]
+
+
+def latest_metric_for(name):
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute(
+            "SELECT * FROM metrics WHERE client_name = ? ORDER BY date DESC, id DESC LIMIT 1",
+            (name,),
+        ).fetchone()
+    return dict(row) if row else None
 
 
 @app.get("/client/<path:name>/progress")
@@ -223,6 +364,56 @@ def show_progress(name):
         selected_name=client["program"],
         summary=client,
         progress_entries=progress_for(name),
+        workouts=workouts_for(name),
+        latest_metric=latest_metric_for(name),
+    ))
+
+
+@app.get("/client/<path:name>/bmi")
+def show_bmi(name):
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute("SELECT * FROM clients WHERE name = ?", (name,)).fetchone()
+    if row is None:
+        abort(404)
+
+    client = dict(row)
+    height = float(client["height"] or 0)
+    weight = float(client["weight"] or 0)
+    bmi = round(weight / ((height / 100) ** 2), 1) if height > 0 and weight > 0 else None
+    category = None
+    if bmi is not None:
+        category = "Underweight" if bmi < 18.5 else "Normal" if bmi < 25 else "Overweight" if bmi < 30 else "Obese"
+    return render_template("index.html", **page_context(
+        client=client,
+        selected_program=PROGRAMS[client["program"]],
+        selected_name=client["program"],
+        summary=client,
+        bmi=bmi,
+        bmi_category=category,
+        progress_entries=progress_for(name),
+        workouts=workouts_for(name),
+        latest_metric=latest_metric_for(name),
+    ))
+
+
+@app.get("/client/<path:name>/workouts")
+def show_workouts(name):
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute("SELECT * FROM clients WHERE name = ?", (name,)).fetchone()
+    if row is None:
+        abort(404)
+
+    client = dict(row)
+    return render_template("index.html", **page_context(
+        client=client,
+        selected_program=PROGRAMS[client["program"]],
+        selected_name=client["program"],
+        summary=client,
+        progress_entries=progress_for(name),
+        workouts=workouts_for(name),
+        latest_metric=latest_metric_for(name),
     ))
 
 
