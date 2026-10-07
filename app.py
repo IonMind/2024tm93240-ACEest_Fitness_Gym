@@ -1,4 +1,7 @@
-from flask import Flask, abort, render_template
+import csv
+import io
+
+from flask import Flask, Response, abort, render_template, request
 
 app = Flask(__name__)
 
@@ -29,6 +32,8 @@ PROGRAMS = {
     },
 }
 
+CLIENTS = []
+
 
 @app.get("/")
 def home():
@@ -39,19 +44,19 @@ def home():
         selected_program=None,
         client=None,
         error=None,
+        clients=CLIENTS,
     )
 
 
 @app.post("/client")
 def save_client():
-    from flask import request
-
     client = {
         "name": request.form.get("name", "").strip(),
         "age": request.form.get("age", "").strip(),
         "weight": request.form.get("weight", "").strip(),
         "program": request.form.get("program", "").strip(),
         "adherence": request.form.get("adherence", "0").strip(),
+        "notes": request.form.get("notes", "").strip(),
     }
 
     if not client["name"] or not client["program"]:
@@ -62,6 +67,7 @@ def save_client():
             selected_program=None,
             client=client,
             error="Client name and program are required.",
+            clients=CLIENTS,
         ), 400
 
     selected_program = PROGRAMS.get(client["program"])
@@ -73,6 +79,7 @@ def save_client():
             selected_program=None,
             client=client,
             error="Select a valid program.",
+            clients=CLIENTS,
         ), 400
 
     try:
@@ -81,6 +88,7 @@ def save_client():
         calories = None
 
     client["calories"] = calories
+    CLIENTS.append(client)
     return render_template(
         "index.html",
         programs=PROGRAMS,
@@ -89,6 +97,30 @@ def save_client():
         selected_name=client["program"],
         client=client,
         error=None,
+        clients=CLIENTS,
+    )
+
+
+@app.get("/clients/export.csv")
+def export_clients():
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["Name", "Age", "Weight", "Program", "Adherence", "Notes"])
+    writer.writerows(
+        [
+            client["name"],
+            client["age"],
+            client["weight"],
+            client["program"],
+            client["adherence"],
+            client["notes"],
+        ]
+        for client in CLIENTS
+    )
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=clients.csv"},
     )
 
 
@@ -104,6 +136,9 @@ def show_program(program_name):
         metrics=SITE_METRICS,
         selected_program=selected_program,
         selected_name=program_name,
+        client=None,
+        error=None,
+        clients=CLIENTS,
     )
 
 
