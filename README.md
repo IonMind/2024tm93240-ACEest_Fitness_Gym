@@ -31,4 +31,21 @@ python app.py
 
 Open `http://127.0.0.1:5000` in a browser and select a program to view its plan.
 
-This initial version intentionally contains only the version-1 program catalog. Tests, Docker, Jenkins, and later application features will be added in subsequent releases.
+## Tests
+
+Install the dependencies and run the test suite:
+
+```powershell
+python -m pytest -q
+```
+
+## Docker
+
+Build and run the application image:
+
+```powershell
+docker build -t aceest-fitness-gym .
+docker run --rm -p 5000:5000 aceest-fitness-gym
+```
+
+The GitHub Actions workflow runs syntax checks, Pytest, the Docker build, and Pytest inside the built image on every push and pull request. Jenkins integration will be added separately.
