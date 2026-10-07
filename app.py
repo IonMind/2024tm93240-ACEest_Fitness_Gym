@@ -10,19 +10,22 @@ SITE_METRICS = {
 
 PROGRAMS = {
     "Fat Loss (FL)": {
-        "workout": "Mon: 5x5 Back Squat + AMRAP\nTue: EMOM 20min Assault Bike\nWed: Bench Press + 21-15-9\nThu: 10RFT Deadlifts/Box Jumps\nFri: 30min Active Recovery",
-        "diet": "B: 3 Egg Whites + Oats Idli\nL: Grilled Chicken + Brown Rice\nD: Fish Curry + Millet Roti\nTarget: 2,000 kcal",
+        "workout": "Mon: Back Squat 5x5 + Core\nTue: EMOM 20min Assault Bike\nWed: Bench Press + 21-15-9\nThu: Deadlift + Box Jumps\nFri: Zone 2 Cardio 30min",
+        "diet": "Breakfast: Egg Whites + Oats\nLunch: Grilled Chicken + Brown Rice\nDinner: Fish Curry + Millet Roti\nTarget: ~2000 kcal",
         "color": "#c0392b",
+        "calorie_factor": 22,
     },
     "Muscle Gain (MG)": {
         "workout": "Mon: Squat 5x5\nTue: Bench 5x5\nWed: Deadlift 4x6\nThu: Front Squat 4x8\nFri: Incline Press 4x10\nSat: Barbell Rows 4x10",
-        "diet": "B: 4 Eggs + PB Oats\nL: Chicken Biryani (250g Chicken)\nD: Mutton Curry + Jeera Rice\nTarget: 3,200 kcal",
+        "diet": "Breakfast: Eggs + Peanut Butter Oats\nLunch: Chicken Biryani\nDinner: Mutton Curry + Rice\nTarget: ~3200 kcal",
         "color": "#218c5a",
+        "calorie_factor": 35,
     },
     "Beginner (BG)": {
-        "workout": "Circuit Training: Air Squats, Ring Rows, Push-ups.\nFocus: Technique Mastery & Form (90% Threshold)",
-        "diet": "Balanced Tamil Meals: Idli-Sambar, Rice-Dal, Chapati.\nProtein: 120g/day",
+        "workout": "Full Body Circuit:\n- Air Squats\n- Ring Rows\n- Push-ups\nFocus: Technique & Consistency",
+        "diet": "Balanced Tamil Meals\nIdli / Dosa / Rice + Dal\nProtein Target: 120g/day",
         "color": "#2474a8",
+        "calorie_factor": 26,
     },
 }
 
@@ -34,6 +37,58 @@ def home():
         programs=PROGRAMS,
         metrics=SITE_METRICS,
         selected_program=None,
+        client=None,
+        error=None,
+    )
+
+
+@app.post("/client")
+def save_client():
+    from flask import request
+
+    client = {
+        "name": request.form.get("name", "").strip(),
+        "age": request.form.get("age", "").strip(),
+        "weight": request.form.get("weight", "").strip(),
+        "program": request.form.get("program", "").strip(),
+        "adherence": request.form.get("adherence", "0").strip(),
+    }
+
+    if not client["name"] or not client["program"]:
+        return render_template(
+            "index.html",
+            programs=PROGRAMS,
+            metrics=SITE_METRICS,
+            selected_program=None,
+            client=client,
+            error="Client name and program are required.",
+        ), 400
+
+    selected_program = PROGRAMS.get(client["program"])
+    if selected_program is None:
+        return render_template(
+            "index.html",
+            programs=PROGRAMS,
+            metrics=SITE_METRICS,
+            selected_program=None,
+            client=client,
+            error="Select a valid program.",
+        ), 400
+
+    try:
+        calories = int(float(client["weight"]) * selected_program["calorie_factor"])
+    except (TypeError, ValueError):
+        calories = None
+
+    client["calories"] = calories
+    return render_template(
+        "index.html",
+        programs=PROGRAMS,
+        metrics=SITE_METRICS,
+        selected_program=selected_program,
+        selected_name=client["program"],
+        client=client,
+        error=None,
     )
 
 

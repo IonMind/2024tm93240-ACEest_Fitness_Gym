@@ -86,6 +86,18 @@
         .detail h3 { color: var(--muted); font-size: .8rem; text-transform: uppercase; }
         .detail pre { margin: 0; white-space: pre-wrap; font: 1rem/1.7 Arial, sans-serif; }
 
+        .profile-form { margin-top: 2rem; padding: 1.25rem; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+        .field { display: flex; flex-direction: column; gap: .35rem; }
+        .field label { color: var(--muted); font-size: .8rem; font-weight: 700; }
+        .field input, .field select { border: 1px solid var(--line); border-radius: 4px; padding: .65rem; color: var(--ink); font: inherit; }
+        .form-actions { margin-top: 1rem; display: flex; gap: .75rem; align-items: center; }
+        button, .reset-link { border: 0; border-radius: 4px; padding: .65rem 1rem; font: inherit; text-decoration: none; cursor: pointer; }
+        button { background: var(--accent); color: #fff; }
+        .reset-link { color: var(--muted); }
+        .error { margin: 1rem 0 0; color: #a12d2d; font-weight: 700; }
+        .saved { margin: 1rem 0 0; color: #218c5a; font-weight: 700; }
+
         @media (max-width: 700px) {
             .container { width: min(100% - 2rem, 1100px); }
             .metrics, .programs, .detail-grid { grid-template-columns: 1fr; }
@@ -122,6 +134,45 @@
                     </article>
                 {% endfor %}
             </div>
+        </section>
+
+        <section class="detail profile-form">
+            <h2>Client profile</h2>
+            <form method="post" action="{{ url_for('save_client') }}">
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="name">Name</label>
+                        <input id="name" name="name" value="{{ client.name if client else '' }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="age">Age</label>
+                        <input id="age" name="age" type="number" min="1" value="{{ client.age if client else '' }}">
+                    </div>
+                    <div class="field">
+                        <label for="weight">Weight (kg)</label>
+                        <input id="weight" name="weight" type="number" min="0" step="0.1" value="{{ client.weight if client else '' }}">
+                    </div>
+                    <div class="field">
+                        <label for="program">Program</label>
+                        <select id="program" name="program" required>
+                            <option value="">Choose a program</option>
+                            {% for name in programs %}
+                                <option value="{{ name }}" {% if client and client.program == name %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="adherence">Weekly adherence (%)</label>
+                        <input id="adherence" name="adherence" type="number" min="0" max="100" value="{{ client.adherence if client else 0 }}">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit">Save client</button>
+                    <a class="reset-link" href="{{ url_for('home') }}">Reset</a>
+                </div>
+            </form>
+            {% if error %}<p class="error">{{ error }}</p>{% endif %}
+            {% if client and client.calories is defined %}<p class="saved">Estimated calories: {{ client.calories }} kcal</p>{% endif %}
         </section>
 
         {% if selected_program %}
