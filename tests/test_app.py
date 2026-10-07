@@ -1,15 +1,14 @@
 import pytest
 
-from app import CLIENTS, PROGRAMS, app
+from app import PROGRAMS, app
 
 
 @pytest.fixture()
-def client():
+def client(tmp_path):
     app.config.update(TESTING=True)
-    CLIENTS.clear()
+    app.config["DATABASE"] = str(tmp_path / "test.db")
     with app.test_client() as test_client:
         yield test_client
-    CLIENTS.clear()
 
 
 def test_home_page_lists_all_programs(client):
@@ -93,6 +92,41 @@ def test_multiple_clients_are_listed_with_notes(client):
     assert b"Asha" in response.data
     assert b"Ravi" in response.data
     assert b"Focus on form" in response.data
+
+
+def test_saved_client_can_be_loaded(client):
+    client.post(
+        "/client",
+        data={
+            "name": "Asha",
+            "age": "30",
+            "weight": "70",
+            "program": "Muscle Gain (MG)",
+            "adherence": "85",
+        },
+    )
+
+    response = client.post("/client/load", data={"name": "Asha"})
+
+    assert response.status_code == 200
+    assert b"Client loaded." in response.data
+    assert b"Calories: 2450 kcal/day" in response.data
+
+
+def test_weekly_progress_is_saved(client):
+    client.post(
+        "/client",
+        data={
+            "name": "Asha",
+            "program": "Beginner (BG)",
+            "adherence": "80",
+        },
+    )
+
+    response = client.post("/progress", data={"name": "Asha", "adherence": "80"})
+
+    assert response.status_code == 200
+    assert b"Weekly progress logged." in response.data
 
 
 def test_clients_can_be_exported_as_csv(client):

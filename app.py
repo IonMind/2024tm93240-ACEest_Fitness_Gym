@@ -1,9 +1,13 @@
 import csv
 import io
+import os
+import sqlite3
+from datetime import datetime
 
 from flask import Flask, Response, abort, render_template, request
 
 app = Flask(__name__)
+app.config["DATABASE"] = os.environ.get("ACEEST_DB_PATH", "aceest_fitness.db")
 
 SITE_METRICS = {
     "capacity": "150 users",
@@ -32,20 +36,66 @@ PROGRAMS = {
     },
 }
 
-CLIENTS = []
+def database_connection():
+    connection = sqlite3.connect(app.config["DATABASE"])
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def initialize_database():
+    with database_connection() as connection:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                age INTEGER,
+                weight REAL,
+                program TEXT NOT NULL,
+                calories INTEGER,
+                adherence INTEGER DEFAULT 0,
+                notes TEXT DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_name TEXT NOT NULL,
+                week TEXT NOT NULL,
+                adherence INTEGER NOT NULL
+            );
+            """
+        )
+
+
+def client_rows():
+    initialize_database()
+    with database_connection() as connection:
+        return [dict(row) for row in connection.execute("SELECT * FROM clients ORDER BY name")]
+
+
+def display_number(value):
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return value
+
+
+def page_context(**values):
+    context = {
+        "programs": PROGRAMS,
+        "metrics": SITE_METRICS,
+        "selected_program": None,
+        "client": None,
+        "error": None,
+        "status": None,
+        "clients": client_rows(),
+        "summary": None,
+    }
+    context.update(values)
+    return context
 
 
 @app.get("/")
 def home():
-    return render_template(
-        "index.html",
-        programs=PROGRAMS,
-        metrics=SITE_METRICS,
-        selected_program=None,
-        client=None,
-        error=None,
-        clients=CLIENTS,
-    )
+    return render_template("index.html", **page_context())
 
 
 @app.post("/client")
@@ -60,27 +110,17 @@ def save_client():
     }
 
     if not client["name"] or not client["program"]:
-        return render_template(
-            "index.html",
-            programs=PROGRAMS,
-            metrics=SITE_METRICS,
-            selected_program=None,
+        return render_template("index.html", **page_context(
             client=client,
             error="Client name and program are required.",
-            clients=CLIENTS,
-        ), 400
+        )), 400
 
     selected_program = PROGRAMS.get(client["program"])
     if selected_program is None:
-        return render_template(
-            "index.html",
-            programs=PROGRAMS,
-            metrics=SITE_METRICS,
-            selected_program=None,
+        return render_template("index.html", **page_context(
             client=client,
             error="Select a valid program.",
-            clients=CLIENTS,
-        ), 400
+        )), 400
 
     try:
         calories = int(float(client["weight"]) * selected_program["calorie_factor"])
@@ -88,17 +128,61 @@ def save_client():
         calories = None
 
     client["calories"] = calories
-    CLIENTS.append(client)
-    return render_template(
-        "index.html",
-        programs=PROGRAMS,
-        metrics=SITE_METRICS,
+    initialize_database()
+    with database_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO clients (name, age, weight, program, calories, adherence, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET
+                age=excluded.age, weight=excluded.weight, program=excluded.program,
+                calories=excluded.calories, adherence=excluded.adherence, notes=excluded.notes
+            """,
+            (client["name"], client["age"] or None, client["weight"] or None,
+             client["program"], calories, client["adherence"] or 0, client["notes"]),
+        )
+    return render_template("index.html", **page_context(
         selected_program=selected_program,
         selected_name=client["program"],
         client=client,
-        error=None,
-        clients=CLIENTS,
-    )
+        status="Client data saved.",
+    ))
+
+
+@app.post("/client/load")
+def load_client():
+    name = request.form.get("name", "").strip()
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute("SELECT * FROM clients WHERE name = ?", (name,)).fetchone()
+
+    if row is None:
+        return render_template("index.html", **page_context(error="Client not found.")), 404
+
+    client = dict(row)
+    return render_template("index.html", **page_context(
+        client=client,
+        selected_program=PROGRAMS[client["program"]],
+        selected_name=client["program"],
+        summary=client,
+        status="Client loaded.",
+    ))
+
+
+@app.post("/progress")
+def save_progress():
+    name = request.form.get("name", "").strip()
+    adherence = request.form.get("adherence", "0").strip()
+    if not name:
+        return render_template("index.html", **page_context(error="Client name is required.")), 400
+
+    initialize_database()
+    with database_connection() as connection:
+        connection.execute(
+            "INSERT INTO progress (client_name, week, adherence) VALUES (?, ?, ?)",
+            (name, datetime.now().strftime("Week %U - %Y"), int(adherence or 0)),
+        )
+    return render_template("index.html", **page_context(status="Weekly progress logged."))
 
 
 @app.get("/clients/export.csv")
@@ -107,15 +191,8 @@ def export_clients():
     writer = csv.writer(output)
     writer.writerow(["Name", "Age", "Weight", "Program", "Adherence", "Notes"])
     writer.writerows(
-        [
-            client["name"],
-            client["age"],
-            client["weight"],
-            client["program"],
-            client["adherence"],
-            client["notes"],
-        ]
-        for client in CLIENTS
+        [client["name"], client["age"], display_number(client["weight"]), client["program"], client["adherence"], client["notes"]]
+        for client in client_rows()
     )
     return Response(
         output.getvalue(),
@@ -130,16 +207,10 @@ def show_program(program_name):
     if selected_program is None:
         abort(404)
 
-    return render_template(
-        "index.html",
-        programs=PROGRAMS,
-        metrics=SITE_METRICS,
+    return render_template("index.html", **page_context(
         selected_program=selected_program,
         selected_name=program_name,
-        client=None,
-        error=None,
-        clients=CLIENTS,
-    )
+    ))
 
 
 if __name__ == "__main__":
