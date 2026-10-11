@@ -1,12 +1,17 @@
 import csv
 import io
 import os
+import random
 import sqlite3
 from datetime import datetime
+from functools import wraps
 
-from flask import Flask, Response, abort, render_template, request
+from flask import Flask, Response, abort, redirect, render_template, request, session, url_for
+from fpdf import FPDF
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = os.environ.get("ACEEST_SECRET_KEY", "development-only-change-me")
 app.config["DATABASE"] = os.environ.get("ACEEST_DB_PATH", "aceest_fitness.db")
 
 SITE_METRICS = {
@@ -52,10 +57,26 @@ def database_connection():
     return connection
 
 
+def login_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if "username" not in session:
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
 def initialize_database():
     with database_connection() as connection:
         connection.executescript(
             """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'Admin'
+            );
             CREATE TABLE IF NOT EXISTS clients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL,
@@ -64,7 +85,8 @@ def initialize_database():
                 program TEXT NOT NULL,
                 calories INTEGER,
                 adherence INTEGER DEFAULT 0,
-                notes TEXT DEFAULT ''
+                notes TEXT DEFAULT '',
+                membership_expiry TEXT
             );
             CREATE TABLE IF NOT EXISTS progress (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,9 +127,16 @@ def initialize_database():
             "height": "REAL",
             "target_weight": "REAL",
             "target_adherence": "INTEGER",
+            "membership_expiry": "TEXT",
         }.items():
             if column not in client_columns:
                 connection.execute(f"ALTER TABLE clients ADD COLUMN {column} {definition}")
+        default_username = os.environ.get("ACEEST_ADMIN_USERNAME", "admin")
+        default_password = os.environ.get("ACEEST_ADMIN_PASSWORD", "admin")
+        connection.execute(
+            "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+            (default_username, generate_password_hash(default_password), "Admin"),
+        )
 
 
 def client_rows():
@@ -137,17 +166,50 @@ def page_context(**values):
         "latest_metric": None,
         "bmi": None,
         "bmi_category": None,
+        "bmi_risk": None,
+        "username": session.get("username"),
+        "generated_plan": None,
     }
     context.update(values)
     return context
 
 
 @app.get("/")
+@login_required
 def home():
     return render_template("index.html", **page_context())
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    initialize_database()
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        with database_connection() as connection:
+            user = connection.execute(
+                "SELECT username, password_hash, role FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+        if user and check_password_hash(user["password_hash"], password):
+            session.clear()
+            session["username"] = user["username"]
+            session["role"] = user["role"]
+            return redirect(url_for("home"))
+        error = "Invalid username or password."
+    return render_template("login.html", error=error)
+
+
+@app.post("/logout")
+@login_required
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.post("/client")
+@login_required
 def save_client():
     client = {
         "name": request.form.get("name", "").strip(),
@@ -159,6 +221,7 @@ def save_client():
         "notes": request.form.get("notes", "").strip(),
         "target_weight": request.form.get("target_weight", "").strip(),
         "target_adherence": request.form.get("target_adherence", "").strip(),
+        "membership_expiry": request.form.get("membership_expiry", "").strip(),
     }
 
     if not client["name"] or not client["program"]:
@@ -174,6 +237,15 @@ def save_client():
             error="Select a valid program.",
         )), 400
 
+    if client["membership_expiry"]:
+        try:
+            datetime.strptime(client["membership_expiry"], "%Y-%m-%d")
+        except ValueError:
+            return render_template("index.html", **page_context(
+                client=client,
+                error="Membership expiry must be a valid date.",
+            )), 400
+
     try:
         calories = int(float(client["weight"]) * selected_program["calorie_factor"])
     except (TypeError, ValueError):
@@ -186,20 +258,22 @@ def save_client():
             """
             INSERT INTO clients
                 (name, age, height, weight, program, calories, adherence, notes,
-                 target_weight, target_adherence)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  target_weight, target_adherence, membership_expiry)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
                 age=excluded.age, height=excluded.height, weight=excluded.weight,
                 program=excluded.program, calories=excluded.calories,
                 adherence=excluded.adherence, notes=excluded.notes,
                 target_weight=excluded.target_weight,
-                target_adherence=excluded.target_adherence
+                target_adherence=excluded.target_adherence,
+                membership_expiry=excluded.membership_expiry
             """,
             (
                 client["name"], client["age"] or None, client["height"] or None,
                 client["weight"] or None, client["program"], calories,
                 client["adherence"] or 0, client["notes"],
                 client["target_weight"] or None, client["target_adherence"] or None,
+                client["membership_expiry"] or None,
             ),
         )
     return render_template("index.html", **page_context(
@@ -211,6 +285,7 @@ def save_client():
 
 
 @app.post("/client/load")
+@login_required
 def load_client():
     name = request.form.get("name", "").strip()
     initialize_database()
@@ -231,6 +306,7 @@ def load_client():
 
 
 @app.post("/progress")
+@login_required
 def save_progress():
     name = request.form.get("name", "").strip()
     adherence = request.form.get("adherence", "0").strip()
@@ -256,6 +332,7 @@ def save_progress():
 
 
 @app.post("/workouts")
+@login_required
 def save_workout():
     workout = {
         "client_name": request.form.get("client_name", "").strip(),
@@ -295,6 +372,7 @@ def save_workout():
 
 
 @app.post("/metrics")
+@login_required
 def save_metrics():
     metric = {
         "client_name": request.form.get("client_name", "").strip(),
@@ -313,6 +391,19 @@ def save_metrics():
             (metric["client_name"], metric["date"], metric["weight"] or None,
              metric["waist"] or None, metric["bodyfat"] or None),
         )
+        if metric["weight"]:
+            client = connection.execute(
+                "SELECT program FROM clients WHERE name = ?",
+                (metric["client_name"],),
+            ).fetchone()
+            if client:
+                factor = PROGRAMS.get(client["program"], {}).get("calorie_factor", 0)
+                weight = float(metric["weight"])
+                calories = int(weight * factor) if factor else None
+                connection.execute(
+                    "UPDATE clients SET weight = ?, calories = ? WHERE name = ?",
+                    (weight, calories, metric["client_name"]),
+                )
     return render_template("index.html", **page_context(status="Body metrics logged successfully."))
 
 
@@ -359,6 +450,7 @@ def latest_metric_for(name):
 
 
 @app.get("/client/<path:name>/progress")
+@login_required
 def show_progress(name):
     initialize_database()
     with database_connection() as connection:
@@ -380,6 +472,7 @@ def show_progress(name):
 
 
 @app.get("/client/<path:name>/bmi")
+@login_required
 def show_bmi(name):
     initialize_database()
     with database_connection() as connection:
@@ -392,8 +485,20 @@ def show_bmi(name):
     weight = float(client["weight"] or 0)
     bmi = round(weight / ((height / 100) ** 2), 1) if height > 0 and weight > 0 else None
     category = None
+    risk = None
     if bmi is not None:
-        category = "Underweight" if bmi < 18.5 else "Normal" if bmi < 25 else "Overweight" if bmi < 30 else "Obese"
+        if bmi < 18.5:
+            category = "Underweight"
+            risk = "Potential nutrient deficiency, low energy."
+        elif bmi < 25:
+            category = "Normal"
+            risk = "Low risk if active and strong."
+        elif bmi < 30:
+            category = "Overweight"
+            risk = "Moderate risk; focus on adherence and progressive activity."
+        else:
+            category = "Obese"
+            risk = "Higher risk; prioritize fat loss, consistency, and supervision."
     return render_template("index.html", **page_context(
         client=client,
         selected_program=PROGRAMS[client["program"]],
@@ -401,6 +506,7 @@ def show_bmi(name):
         summary=client,
         bmi=bmi,
         bmi_category=category,
+        bmi_risk=risk,
         progress_entries=progress_for(name),
         workouts=workouts_for(name),
         latest_metric=latest_metric_for(name),
@@ -408,6 +514,7 @@ def show_bmi(name):
 
 
 @app.get("/client/<path:name>/workouts")
+@login_required
 def show_workouts(name):
     initialize_database()
     with database_connection() as connection:
@@ -428,6 +535,7 @@ def show_workouts(name):
 
 
 @app.get("/clients/export.csv")
+@login_required
 def export_clients():
     output = io.StringIO(newline="")
     writer = csv.writer(output)
@@ -444,6 +552,7 @@ def export_clients():
 
 
 @app.get("/program/<path:program_name>")
+@login_required
 def show_program(program_name):
     selected_program = PROGRAMS.get(program_name)
     if selected_program is None:
@@ -453,6 +562,108 @@ def show_program(program_name):
         selected_program=selected_program,
         selected_name=program_name,
     ))
+
+
+EXERCISE_POOLS = {
+    "Strength": ["Squat", "Deadlift", "Bench Press", "Overhead Press", "Pull-Up", "Barbell Row"],
+    "Hypertrophy": ["Leg Press", "Incline Dumbbell Press", "Lat Pulldown", "Lateral Raise", "Bicep Curl", "Tricep Extension"],
+    "Conditioning": ["Running", "Cycling", "Rowing", "Burpees", "Jump Rope", "Kettlebell Swings"],
+    "Full Body": ["Push-Up", "Pull-Up", "Lunge", "Plank", "Dumbbell Row", "Dumbbell Press"],
+}
+
+
+def create_ai_program(program_name, experience):
+    levels = {
+        "beginner": ((2, 3), (8, 12), 3),
+        "intermediate": ((3, 4), (8, 15), 4),
+        "advanced": ((4, 5), (6, 15), 5),
+    }
+    level = experience.strip().lower()
+    if level not in levels:
+        raise ValueError("Choose beginner, intermediate, or advanced experience.")
+
+    (sets_range, reps_range, day_count) = levels[level]
+    focus = "Conditioning" if "Fat Loss" in program_name else "Hypertrophy" if "Muscle Gain" in program_name else "Full Body"
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][:day_count]
+    exercises_per_day = 3 if day_count < 4 else 4
+    return [
+        {
+            "day": day,
+            "exercise": exercise,
+            "sets": random.randint(*sets_range),
+            "reps": random.randint(*reps_range),
+        }
+        for day in days
+        for exercise in random.sample(EXERCISE_POOLS[focus], k=exercises_per_day)
+    ]
+
+
+@app.post("/client/<path:name>/generate-program")
+@login_required
+def generate_client_program(name):
+    experience = request.form.get("experience", "")
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute("SELECT * FROM clients WHERE name = ?", (name,)).fetchone()
+    if row is None:
+        abort(404)
+
+    client = dict(row)
+    try:
+        generated_plan = create_ai_program(client["program"], experience)
+    except ValueError as exc:
+        return render_template("index.html", **page_context(client=client, error=str(exc))), 400
+
+    return render_template("index.html", **page_context(
+        client=client,
+        selected_program=PROGRAMS[client["program"]],
+        selected_name=client["program"],
+        generated_plan=generated_plan,
+        status=f"Workout program generated for {client['name']}.",
+    ))
+
+
+@app.get("/client/<path:name>/report.pdf")
+@login_required
+def export_pdf_report(name):
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute("SELECT * FROM clients WHERE name = ?", (name,)).fetchone()
+    if row is None:
+        abort(404)
+
+    client = dict(row)
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 12, _pdf_text(f"ACEest Client Report - {client['name']}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", size=12)
+    report_fields = (
+        ("Name", client["name"]),
+        ("Age", client["age"] or "-"),
+        ("Height", f"{client['height'] or '-'} cm"),
+        ("Weight", f"{client['weight'] or '-'} kg"),
+        ("Program", client["program"]),
+        ("Calories", f"{client['calories'] or '-'} kcal/day"),
+        ("Membership expiry", client["membership_expiry"] or "Not set"),
+    )
+    for label, value in report_fields:
+        pdf.cell(0, 9, _pdf_text(f"{label}: {value}"), new_x="LMARGIN", new_y="NEXT")
+
+    report = bytes(pdf.output())
+    return Response(
+        report,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={_safe_filename(name)}_report.pdf"},
+    )
+
+
+def _pdf_text(value):
+    return str(value).encode("latin-1", "replace").decode("latin-1")
+
+
+def _safe_filename(value):
+    return "".join(character for character in value if character.isalnum() or character in "-_ ").strip().replace(" ", "_") or "client"
 
 
 if __name__ == "__main__":
