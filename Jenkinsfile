@@ -13,7 +13,11 @@ pipeline {
     stages {
         stage('Install dependencies') {
             steps {
-                sh 'python -m pip install --no-cache-dir -r requirements.txt'
+                sh ''' 
+                pwd
+                ls -al
+                'python -m pip install --no-cache-dir -r requirements.txt'
+                '''
             }
         }
 
