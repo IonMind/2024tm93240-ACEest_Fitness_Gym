@@ -114,6 +114,8 @@
         .history { margin-top: 1rem; overflow-x: auto; }
         .history-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
         .history-actions a { color: var(--accent); font-weight: 700; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+        .logout-button { margin: 0; background: transparent; border: 1px solid var(--line); color: var(--ink); }
 
         @media (max-width: 700px) {
             .container { width: min(100% - 2rem, 1100px); }
@@ -125,9 +127,17 @@
 <body>
     <header>
         <div class="container">
-            <p>ACEest Fitness &amp; Gym</p>
-            <h1>Functional fitness, clearly planned.</h1>
-            <p class="subtitle">Choose a program to view its weekly workout and nutrition plan.</p>
+            <div class="header-row">
+                <div>
+                    <p>ACEest Fitness &amp; Gym</p>
+                    <h1>Functional fitness, clearly planned.</h1>
+                    <p class="subtitle">Choose a program to view its weekly workout and nutrition plan.</p>
+                </div>
+                <form method="post" action="{{ url_for('logout') }}">
+                    <span>{{ username }}</span>
+                    <button class="logout-button" type="submit">Sign out</button>
+                </form>
+            </div>
         </div>
     </header>
 
@@ -141,7 +151,7 @@
         <section>
             <div class="section-heading">
                 <h2>Program profiles</h2>
-                <p>Select a profile to view the version 1 plan.</p>
+                <p>Select a profile to view its workout and nutrition plan.</p>
             </div>
             <div class="programs">
                 {% for name, program in programs.items() %}
@@ -199,6 +209,10 @@
                         <label for="target_adherence">Target adherence (%)</label>
                         <input id="target_adherence" name="target_adherence" type="number" min="0" max="100" value="{{ client.target_adherence if client else '' }}">
                     </div>
+                    <div class="field">
+                        <label for="membership_expiry">Membership expiry</label>
+                        <input id="membership_expiry" name="membership_expiry" type="date" value="{{ client.membership_expiry if client else '' }}">
+                    </div>
                 </div>
                 <div class="form-actions">
                     <button type="submit">Save client</button>
@@ -229,7 +243,23 @@ Name: {{ summary.name }}
 Age: {{ summary.age or '-' }}
 Weight: {{ summary.weight or '-' }} kg
 Program: {{ summary.program }}
-Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
+Calories: {{ summary.calories or '-' }} kcal/day
+Membership expiry: {{ summary.membership_expiry or 'Not set' }}</pre>{% endif %}
+            {% if client %}
+                <div class="history-actions">
+                    <a href="{{ url_for('export_pdf_report', name=client.name) }}">Download PDF report</a>
+                </div>
+                <form class="form-actions" method="post" action="{{ url_for('generate_client_program', name=client.name) }}">
+                    <label for="experience">Experience level</label>
+                    <select id="experience" name="experience" required>
+                        <option value="">Choose level</option>
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+                    <button type="submit">Generate AI program</button>
+                </form>
+            {% endif %}
         </section>
 
         <section class="detail client-list">
@@ -307,7 +337,7 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
         {% endif %}
 
         {% if bmi %}
-            <section class="detail"><h2>BMI and risk information</h2><p>BMI: <strong>{{ bmi }}</strong> ({{ bmi_category }})</p></section>
+            <section class="detail"><h2>BMI and risk information</h2><p>BMI: <strong>{{ bmi }}</strong> ({{ bmi_category }})</p><p>{{ bmi_risk }}</p></section>
         {% endif %}
 
         {% if progress_entries %}
@@ -322,6 +352,20 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
                         </div>
                     {% endfor %}
                 </div>
+            </section>
+        {% endif %}
+
+        {% if generated_plan %}
+            <section class="detail">
+                <h2>Generated workout plan</h2>
+                <div class="history"><table>
+                    <thead><tr><th>Day</th><th>Exercise</th><th>Sets</th><th>Reps</th></tr></thead>
+                    <tbody>
+                        {% for item in generated_plan %}
+                            <tr><td>{{ item.day }}</td><td>{{ item.exercise }}</td><td>{{ item.sets }}</td><td>{{ item.reps }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table></div>
             </section>
         {% endif %}
 
