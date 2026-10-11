@@ -19,11 +19,28 @@ def test_home_page_lists_all_programs(client):
         assert program_name.encode() in response.data
 
 
+def test_version_3_program_descriptions_and_calorie_factors(client):
+    expected = {
+        "Fat Loss (FL) – 3 day": (22, "3-day full-body fat loss"),
+        "Fat Loss (FL) – 5 day": (24, "5-day split, higher volume fat loss"),
+        "Muscle Gain (MG) – PPL": (35, "Push/Pull/Legs hypertrophy"),
+        "Beginner (BG)": (26, "3-day simple beginner full-body"),
+    }
+
+    response = client.get("/")
+
+    assert set(PROGRAMS) == set(expected)
+    for name, (factor, description) in expected.items():
+        assert PROGRAMS[name]["calorie_factor"] == factor
+        assert description.encode() in response.data
+
+
 @pytest.mark.parametrize(
     ("program_name", "expected_text"),
     [
-        ("Fat Loss (FL)", "Back Squat 5x5 + Core"),
-        ("Muscle Gain (MG)", "Deadlift 4x6"),
+        ("Fat Loss (FL) – 3 day", "Back Squat 5x5 + Core"),
+        ("Fat Loss (FL) – 5 day", "Back Squat 5x5 + Core"),
+        ("Muscle Gain (MG) – PPL", "Deadlift 4x6"),
         ("Beginner (BG)", "Technique &amp; Consistency"),
     ],
 )
@@ -35,7 +52,7 @@ def test_program_page_displays_workout(client, program_name, expected_text):
 
 
 def test_program_page_displays_nutrition_plan(client):
-    response = client.get("/program/Fat%20Loss%20(FL)")
+    response = client.get("/program/Fat%20Loss%20(FL)%20%E2%80%93%203%20day")
 
     assert response.status_code == 200
     assert b"Grilled Chicken + Brown Rice" in response.data
@@ -48,7 +65,7 @@ def test_client_profile_calculates_estimated_calories(client):
             "name": "Asha",
             "age": "30",
             "weight": "70",
-            "program": "Muscle Gain (MG)",
+            "program": "Muscle Gain (MG) – PPL",
             "adherence": "85",
         },
     )
@@ -71,7 +88,7 @@ def test_multiple_clients_are_listed_with_notes(client):
             "name": "Asha",
             "age": "30",
             "weight": "70",
-            "program": "Muscle Gain (MG)",
+            "program": "Muscle Gain (MG) – PPL",
             "adherence": "85",
             "notes": "Increase weekly volume",
         },
@@ -101,7 +118,7 @@ def test_saved_client_can_be_loaded(client):
             "name": "Asha",
             "age": "30",
             "weight": "70",
-            "program": "Muscle Gain (MG)",
+            "program": "Muscle Gain (MG) – PPL",
             "adherence": "85",
         },
     )
@@ -212,7 +229,7 @@ def test_clients_can_be_exported_as_csv(client):
             "name": "Asha",
             "age": "30",
             "weight": "70",
-            "program": "Muscle Gain (MG)",
+            "program": "Muscle Gain (MG) – PPL",
             "adherence": "85",
             "notes": "Coach note",
         },
@@ -223,7 +240,7 @@ def test_clients_can_be_exported_as_csv(client):
     assert response.status_code == 200
     assert response.mimetype == "text/csv"
     assert b"Name,Age,Weight,Program,Adherence,Notes" in response.data
-    assert b"Asha,30,70,Muscle Gain (MG),85,Coach note" in response.data
+    assert b"Asha,30,70,Muscle Gain (MG) \xe2\x80\x93 PPL,85,Coach note" in response.data
 
 
 def test_unknown_program_returns_not_found(client):

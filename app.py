@@ -16,21 +16,31 @@ SITE_METRICS = {
 }
 
 PROGRAMS = {
-    "Fat Loss (FL)": {
+    "Fat Loss (FL) – 3 day": {
         "workout": "Mon: Back Squat 5x5 + Core\nTue: EMOM 20min Assault Bike\nWed: Bench Press + 21-15-9\nThu: Deadlift + Box Jumps\nFri: Zone 2 Cardio 30min",
         "diet": "Breakfast: Egg Whites + Oats\nLunch: Grilled Chicken + Brown Rice\nDinner: Fish Curry + Millet Roti\nTarget: ~2000 kcal",
+        "description": "3-day full-body fat loss",
         "color": "#c0392b",
         "calorie_factor": 22,
     },
-    "Muscle Gain (MG)": {
+    "Fat Loss (FL) – 5 day": {
+        "workout": "Mon: Back Squat 5x5 + Core\nTue: EMOM 20min Assault Bike\nWed: Bench Press + 21-15-9\nThu: Deadlift + Box Jumps\nFri: Zone 2 Cardio 30min",
+        "diet": "Breakfast: Egg Whites + Oats\nLunch: Grilled Chicken + Brown Rice\nDinner: Fish Curry + Millet Roti\nTarget: ~2000 kcal",
+        "description": "5-day split, higher volume fat loss",
+        "color": "#b34a31",
+        "calorie_factor": 24,
+    },
+    "Muscle Gain (MG) – PPL": {
         "workout": "Mon: Squat 5x5\nTue: Bench 5x5\nWed: Deadlift 4x6\nThu: Front Squat 4x8\nFri: Incline Press 4x10\nSat: Barbell Rows 4x10",
         "diet": "Breakfast: Eggs + Peanut Butter Oats\nLunch: Chicken Biryani\nDinner: Mutton Curry + Rice\nTarget: ~3200 kcal",
+        "description": "Push/Pull/Legs hypertrophy",
         "color": "#218c5a",
         "calorie_factor": 35,
     },
     "Beginner (BG)": {
         "workout": "Full Body Circuit:\n- Air Squats\n- Ring Rows\n- Push-ups\nFocus: Technique & Consistency",
         "diet": "Balanced Tamil Meals\nIdli / Dosa / Rice + Dal\nProtein Target: 120g/day",
+        "description": "3-day simple beginner full-body",
         "color": "#2474a8",
         "calorie_factor": 26,
     },

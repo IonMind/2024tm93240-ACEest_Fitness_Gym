@@ -147,6 +147,7 @@
                 {% for name, program in programs.items() %}
                     <article class="program-card" style="--program-color: {{ program.color }}">
                         <h3>{{ name }}</h3>
+                        <p>{{ program.description }}</p>
                         <a href="{{ url_for('show_program', program_name=name) }}">View plan &rarr;</a>
                     </article>
                 {% endfor %}
@@ -327,6 +328,7 @@ Calories: {{ summary.calories or '-' }} kcal/day</pre>{% endif %}
         {% if selected_program %}
             <section class="detail" aria-live="polite">
                 <h2>{{ selected_name }}</h2>
+                <p>{{ selected_program.description }}</p>
                 <div class="detail-grid">
                     <div>
                         <h3>Weekly workout chart</h3>

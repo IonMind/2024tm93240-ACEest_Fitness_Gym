@@ -1,12 +1,13 @@
 # ACEest Fitness & Gym
 
-ACEest Fitness & Gym is a Flask application for managing fitness programs, client profiles, progress, workouts, and body metrics. The current application release is **v2.2.4**.
+ACEest Fitness & Gym is a Flask application for managing fitness programs, client profiles, progress, workouts, and body metrics. The current application release is **v3.0.1**.
 
 ## Features
 
 - Fitness program catalog:
-	- Fat Loss (FL)
-	- Muscle Gain (MG)
+	- Fat Loss (FL) – 3 day
+	- Fat Loss (FL) – 5 day
+	- Muscle Gain (MG) – PPL
 	- Beginner (BG)
 - Client profiles with age, height, weight, goals, adherence, and coach notes
 - Estimated daily calories based on weight and selected program
@@ -101,8 +102,8 @@ The `Jenkinsfile` defines the Jenkins BUILD stages: install Python dependencies,
 To create a release, merge the release branch into `master`, create a version tag, and push the tag:
 
 ```powershell
-git tag -a v2.3.0 -m "Release version 2.3.0"
-git push origin v2.3.0
+git tag -a v3.0.1 -m "Release version 3.0.1"
+git push origin v3.0.1
 ```
 
 The workflow in `.github/workflows/release.yml` runs when a tag beginning with `v` is pushed. It verifies that the tagged commit is on `master` and creates a GitHub Release with automatically generated release notes.
@@ -116,3 +117,4 @@ The workflow in `.github/workflows/release.yml` runs when a tag beginning with `
 - `v2.1.2`: Versioned persistence release
 - `v2.2.1`: Adherence history and progress chart
 - `v2.2.4`: Goals, workouts, exercises, body metrics, and BMI
+- `v3.0.1`: Expanded program catalog with program descriptions and variants
