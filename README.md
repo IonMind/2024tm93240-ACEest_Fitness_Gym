@@ -1,6 +1,6 @@
 # ACEest Fitness & Gym
 
-ACEest Fitness & Gym is a Flask application for managing fitness programs, client profiles, progress, workouts, and body metrics. The current application release is **v3.1.2**.
+ACEest Fitness & Gym is a Flask application for managing fitness programs, client profiles, progress, workouts, and body metrics. The current application release is **v3.2.4**.
 
 ## Features
 
@@ -12,6 +12,7 @@ ACEest Fitness & Gym is a Flask application for managing fitness programs, clien
 - Client profiles with age, height, weight, goals, adherence, and coach notes
 - Username/password login with hashed password storage
 - Membership expiry dates on client profiles
+- Active, expired, and unset membership status checks
 - Estimated daily calories based on weight and selected program
 - SQLite persistence for clients and weekly progress
 - Workout and exercise logging
@@ -20,6 +21,8 @@ ACEest Fitness & Gym is a Flask application for managing fitness programs, clien
 - Workout history and latest body metrics
 - BMI calculation and category display
 - Experience-based workout plan generation
+- Randomized program recommendations saved to client history
+- Weight trend chart from recorded body metrics
 - Downloadable PDF client reports
 - CSV export for saved clients
 - Docker image build and automated GitHub Actions validation
@@ -75,6 +78,8 @@ python app.py
 | `/metrics` | Log body metrics with `POST` |
 | `/client/<name>/bmi` | View BMI classification |
 | `/client/<name>/generate-program` | Generate a workout plan with `POST` |
+| `/client/<name>/generate-random-program` | Generate and save a randomized recommendation with `POST` |
+| `/client/<name>/membership` | Check membership status and expiry |
 | `/client/<name>/report.pdf` | Download a client PDF report |
 | `/clients/export.csv` | Download saved clients as CSV |
 
@@ -112,8 +117,8 @@ The `Jenkinsfile` defines the Jenkins BUILD stages: install Python dependencies,
 To create a release, merge the release branch into `master`, create a version tag, and push the tag:
 
 ```powershell
-git tag -a v3.1.2 -m "Release version 3.1.2"
-git push origin v3.1.2
+git tag -a v3.2.4 -m "Release version 3.2.4"
+git push origin v3.2.4
 ```
 
 The workflow in `.github/workflows/release.yml` runs when a tag beginning with `v` is pushed. It verifies that the tagged commit is on `master` and creates a GitHub Release with automatically generated release notes.
@@ -129,3 +134,4 @@ The workflow in `.github/workflows/release.yml` runs when a tag beginning with `
 - `v2.2.4`: Goals, workouts, exercises, body metrics, and BMI
 - `v3.0.1`: Expanded program catalog with program descriptions and variants
 - `v3.1.2`: Login, membership expiry, generated workout plans, and PDF client reports
+- `v3.2.4`: Membership status checks, randomized program history, and weight trend chart

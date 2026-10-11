@@ -111,6 +111,10 @@
         .chart-column { display: flex; flex: 1; flex-direction: column; align-items: center; gap: .35rem; height: 160px; justify-content: end; }
         .chart-bar { width: min(44px, 80%); min-height: 2px; background: var(--accent); border-radius: 3px 3px 0 0; }
         .chart-value, .chart-label { color: var(--muted); font-size: .75rem; }
+        .membership-status { display: inline-block; padding: .2rem .45rem; border-radius: 3px; font-size: .75rem; font-weight: 700; }
+        .membership-active { color: #176b43; background: #e4f3eb; }
+        .membership-expired { color: #9a2f2f; background: #f9e7e7; }
+        .membership-unset { color: var(--muted); background: #edf0f1; }
         .history { margin-top: 1rem; overflow-x: auto; }
         .history-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
         .history-actions a { color: var(--accent); font-weight: 700; }
@@ -244,11 +248,16 @@ Age: {{ summary.age or '-' }}
 Weight: {{ summary.weight or '-' }} kg
 Program: {{ summary.program }}
 Calories: {{ summary.calories or '-' }} kcal/day
+Membership: {{ summary.membership_status or 'Not set' }}
 Membership expiry: {{ summary.membership_expiry or 'Not set' }}</pre>{% endif %}
             {% if client %}
                 <div class="history-actions">
                     <a href="{{ url_for('export_pdf_report', name=client.name) }}">Download PDF report</a>
+                    <a href="{{ url_for('check_membership', name=client.name) }}">Check membership</a>
                 </div>
+                <form class="form-actions" method="post" action="{{ url_for('generate_random_program', name=client.name) }}">
+                    <button type="submit">Generate AI program</button>
+                </form>
                 <form class="form-actions" method="post" action="{{ url_for('generate_client_program', name=client.name) }}">
                     <label for="experience">Experience level</label>
                     <select id="experience" name="experience" required>
@@ -270,7 +279,7 @@ Membership expiry: {{ summary.membership_expiry or 'Not set' }}</pre>{% endif %}
             {% if clients %}
                 <table>
                     <thead>
-                        <tr><th>Name</th><th>Age</th><th>Weight</th><th>Program</th><th>Adherence</th><th>Notes</th><th>History</th></tr>
+                        <tr><th>Name</th><th>Age</th><th>Weight</th><th>Program</th><th>Adherence</th><th>Membership</th><th>Notes</th><th>History</th></tr>
                     </thead>
                     <tbody>
                         {% for saved_client in clients %}
@@ -280,8 +289,9 @@ Membership expiry: {{ summary.membership_expiry or 'Not set' }}</pre>{% endif %}
                                 <td>{{ saved_client.weight }} kg</td>
                                 <td>{{ saved_client.program }}</td>
                                 <td>{{ saved_client.adherence }}%<div class="progress"><span style="width: {{ saved_client.adherence|int }}%"></span></div></td>
+                                <td><span class="membership-status membership-{{ saved_client.membership_status|lower|replace(' ', '-') }}">{{ saved_client.membership_status }}</span>{% if saved_client.membership_expiry %}<br>{{ saved_client.membership_expiry }}{% endif %}</td>
                                 <td>{{ saved_client.notes }}</td>
-                                <td><a class="progress-link" href="{{ url_for('show_progress', name=saved_client.name) }}">Progress</a><br><a class="progress-link" href="{{ url_for('show_workouts', name=saved_client.name) }}">Workouts</a><br><a class="progress-link" href="{{ url_for('show_bmi', name=saved_client.name) }}">BMI</a></td>
+                                <td><a class="progress-link" href="{{ url_for('show_progress', name=saved_client.name) }}">Progress</a><br><a class="progress-link" href="{{ url_for('show_workouts', name=saved_client.name) }}">Workouts</a><br><a class="progress-link" href="{{ url_for('show_bmi', name=saved_client.name) }}">BMI</a><br><a class="progress-link" href="{{ url_for('check_membership', name=saved_client.name) }}">Membership</a></td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -334,6 +344,43 @@ Membership expiry: {{ summary.membership_expiry or 'Not set' }}</pre>{% endif %}
 
         {% if latest_metric %}
             <section class="detail"><h2>Latest body metrics</h2><p>{{ latest_metric.date }} | Weight: {{ latest_metric.weight or '-' }} kg | Waist: {{ latest_metric.waist or '-' }} cm | Body fat: {{ latest_metric.bodyfat or '-' }}%</p></section>
+        {% endif %}
+
+        {% if weight_entries %}
+            <section class="detail">
+                <h2>Weight trend</h2>
+                <div class="chart" aria-label="Weight trend chart">
+                    {% for entry in weight_entries %}
+                        <div class="chart-column">
+                            <span class="chart-value">{{ entry.weight }} kg</span>
+                            <div class="chart-bar" style="height: {{ entry.chart_height }}%"></div>
+                            <span class="chart-label">{{ entry.date }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if membership %}
+            <section class="detail">
+                <h2>Membership status</h2>
+                <p><span class="membership-status membership-{{ membership.status|lower|replace(' ', '-') }}">{{ membership.status }}</span></p>
+                <p>Expiry: {{ membership.expiry or 'Not set' }}</p>
+                {% if membership.status == 'Active' %}<p>{{ membership.days_remaining }} days remaining.</p>{% endif %}
+            </section>
+        {% endif %}
+
+        {% if generated_program %}
+            <section class="detail"><h2>AI program generated</h2><p>{{ generated_program.category }}: <strong>{{ generated_program.detail }}</strong></p><p>Generated {{ generated_program.created_at }}</p></section>
+        {% endif %}
+
+        {% if generated_programs %}
+            <section class="detail">
+                <h2>Generated program history</h2>
+                <div class="history"><table><thead><tr><th>Type</th><th>Program</th><th>Generated at</th></tr></thead><tbody>
+                    {% for recommendation in generated_programs %}<tr><td>{{ recommendation.program_type }}</td><td>{{ recommendation.program_detail }}</td><td>{{ recommendation.created_at }}</td></tr>{% endfor %}
+                </tbody></table></div>
+            </section>
         {% endif %}
 
         {% if bmi %}

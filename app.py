@@ -3,7 +3,7 @@ import io
 import os
 import random
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from functools import wraps
 
 from flask import Flask, Response, abort, redirect, render_template, request, session, url_for
@@ -18,6 +18,12 @@ SITE_METRICS = {
     "capacity": "150 users",
     "area": "10,000 sq ft",
     "break_even": "250 members",
+}
+
+AI_PROGRAM_TEMPLATES = {
+    "Fat Loss": ["Full Body HIIT", "Circuit Training", "Cardio + Weights"],
+    "Muscle Gain": ["Push/Pull/Legs", "Upper/Lower Split", "Full Body Strength"],
+    "Beginner": ["Full Body 3x/week", "Light Strength + Mobility"],
 }
 
 PROGRAMS = {
@@ -86,7 +92,8 @@ def initialize_database():
                 calories INTEGER,
                 adherence INTEGER DEFAULT 0,
                 notes TEXT DEFAULT '',
-                membership_expiry TEXT
+                membership_expiry TEXT,
+                membership_status TEXT DEFAULT 'Not set'
             );
             CREATE TABLE IF NOT EXISTS progress (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,6 +125,13 @@ def initialize_database():
                 waist REAL,
                 bodyfat REAL
             );
+            CREATE TABLE IF NOT EXISTS generated_programs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_name TEXT NOT NULL,
+                program_type TEXT NOT NULL,
+                program_detail TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
         client_columns = {
@@ -128,6 +142,7 @@ def initialize_database():
             "target_weight": "REAL",
             "target_adherence": "INTEGER",
             "membership_expiry": "TEXT",
+            "membership_status": "TEXT DEFAULT 'Not set'",
         }.items():
             if column not in client_columns:
                 connection.execute(f"ALTER TABLE clients ADD COLUMN {column} {definition}")
@@ -142,7 +157,22 @@ def initialize_database():
 def client_rows():
     initialize_database()
     with database_connection() as connection:
-        return [dict(row) for row in connection.execute("SELECT * FROM clients ORDER BY name")]
+        rows = [dict(row) for row in connection.execute("SELECT * FROM clients ORDER BY name")]
+    for row in rows:
+        row["membership_status"] = membership_for(row.get("membership_expiry"))["status"]
+    return rows
+
+
+def membership_for(expiry):
+    if not expiry:
+        return {"status": "Not set", "expiry": None, "days_remaining": None}
+    expiry_date = date.fromisoformat(expiry)
+    days_remaining = (expiry_date - date.today()).days
+    return {
+        "status": "Active" if days_remaining >= 0 else "Expired",
+        "expiry": expiry,
+        "days_remaining": max(days_remaining, 0),
+    }
 
 
 def display_number(value):
@@ -169,6 +199,9 @@ def page_context(**values):
         "bmi_risk": None,
         "username": session.get("username"),
         "generated_plan": None,
+        "generated_program": None,
+        "membership": None,
+        "weight_entries": [],
     }
     context.update(values)
     return context
@@ -245,6 +278,7 @@ def save_client():
                 client=client,
                 error="Membership expiry must be a valid date.",
             )), 400
+    membership_status = membership_for(client["membership_expiry"])["status"]
 
     try:
         calories = int(float(client["weight"]) * selected_program["calorie_factor"])
@@ -252,21 +286,23 @@ def save_client():
         calories = None
 
     client["calories"] = calories
+    client["membership_status"] = membership_status
     initialize_database()
     with database_connection() as connection:
         connection.execute(
             """
             INSERT INTO clients
                 (name, age, height, weight, program, calories, adherence, notes,
-                  target_weight, target_adherence, membership_expiry)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  target_weight, target_adherence, membership_expiry, membership_status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
                 age=excluded.age, height=excluded.height, weight=excluded.weight,
                 program=excluded.program, calories=excluded.calories,
                 adherence=excluded.adherence, notes=excluded.notes,
                 target_weight=excluded.target_weight,
                 target_adherence=excluded.target_adherence,
-                membership_expiry=excluded.membership_expiry
+                membership_expiry=excluded.membership_expiry,
+                membership_status=excluded.membership_status
             """,
             (
                 client["name"], client["age"] or None, client["height"] or None,
@@ -274,6 +310,7 @@ def save_client():
                 client["adherence"] or 0, client["notes"],
                 client["target_weight"] or None, client["target_adherence"] or None,
                 client["membership_expiry"] or None,
+                membership_status,
             ),
         )
     return render_template("index.html", **page_context(
@@ -296,6 +333,7 @@ def load_client():
         return render_template("index.html", **page_context(error="Client not found.")), 404
 
     client = dict(row)
+    client["membership_status"] = membership_for(client.get("membership_expiry"))["status"]
     return render_template("index.html", **page_context(
         client=client,
         selected_program=PROGRAMS[client["program"]],
@@ -449,6 +487,46 @@ def latest_metric_for(name):
     return dict(row) if row else None
 
 
+def weight_history_for(name):
+    initialize_database()
+    with database_connection() as connection:
+        weights = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT date, weight FROM metrics WHERE client_name = ? AND weight IS NOT NULL ORDER BY date, id",
+                (name,),
+            )
+        ]
+    if not weights:
+        return []
+    values = [float(item["weight"]) for item in weights]
+    low, high = min(values), max(values)
+    for item in weights:
+        value = float(item["weight"])
+        item["chart_height"] = 32 if high == low else round(20 + (value - low) * 80 / (high - low))
+    return weights
+
+
+def generated_programs_for(name):
+    initialize_database()
+    with database_connection() as connection:
+        return [
+            dict(row)
+            for row in connection.execute(
+                "SELECT program_type, program_detail, created_at FROM generated_programs WHERE client_name = ? ORDER BY id DESC",
+                (name,),
+            )
+        ]
+
+
+def program_category(program_name):
+    if "Fat Loss" in program_name:
+        return "Fat Loss"
+    if "Muscle Gain" in program_name:
+        return "Muscle Gain"
+    return "Beginner"
+
+
 @app.get("/client/<path:name>/progress")
 @login_required
 def show_progress(name):
@@ -468,6 +546,8 @@ def show_progress(name):
         progress_entries=progress_for(name),
         workouts=workouts_for(name),
         latest_metric=latest_metric_for(name),
+        weight_entries=weight_history_for(name),
+        generated_programs=generated_programs_for(name),
     ))
 
 
@@ -510,6 +590,8 @@ def show_bmi(name):
         progress_entries=progress_for(name),
         workouts=workouts_for(name),
         latest_metric=latest_metric_for(name),
+        weight_entries=weight_history_for(name),
+        generated_programs=generated_programs_for(name),
     ))
 
 
@@ -531,6 +613,8 @@ def show_workouts(name):
         progress_entries=progress_for(name),
         workouts=workouts_for(name),
         latest_metric=latest_metric_for(name),
+        weight_entries=weight_history_for(name),
+        generated_programs=generated_programs_for(name),
     ))
 
 
@@ -620,6 +704,67 @@ def generate_client_program(name):
         selected_name=client["program"],
         generated_plan=generated_plan,
         status=f"Workout program generated for {client['name']}.",
+    ))
+
+
+@app.post("/client/<path:name>/generate-random-program")
+@login_required
+def generate_random_program(name):
+    initialize_database()
+    with database_connection() as connection:
+        client_row = connection.execute(
+            "SELECT * FROM clients WHERE name = ?", (name,)
+        ).fetchone()
+        if client_row is None:
+            abort(404)
+        client = dict(client_row)
+        category = program_category(client["program"])
+        detail = random.choice(AI_PROGRAM_TEMPLATES[category])
+        created_at = datetime.now().isoformat(timespec="seconds")
+        connection.execute(
+            """
+            INSERT INTO generated_programs (client_name, program_type, program_detail, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (name, category, detail, created_at),
+        )
+    return render_template("index.html", **page_context(
+        client=client,
+        selected_program=PROGRAMS[client["program"]],
+        selected_name=client["program"],
+        generated_program={
+            "category": category,
+            "detail": detail,
+            "created_at": created_at,
+        },
+        generated_programs=generated_programs_for(name),
+        weight_entries=weight_history_for(name),
+        status=f"Generated {category} program: {detail}.",
+    ))
+
+
+@app.get("/client/<path:name>/membership")
+@login_required
+def check_membership(name):
+    initialize_database()
+    with database_connection() as connection:
+        row = connection.execute(
+            "SELECT * FROM clients WHERE name = ?", (name,)
+        ).fetchone()
+    if row is None:
+        abort(404)
+
+    client = dict(row)
+    membership = membership_for(client.get("membership_expiry"))
+    client["membership_status"] = membership["status"]
+    return render_template("index.html", **page_context(
+        client=client,
+        selected_program=PROGRAMS[client["program"]],
+        selected_name=client["program"],
+        summary=client,
+        membership=membership,
+        generated_programs=generated_programs_for(name),
+        weight_entries=weight_history_for(name),
     ))
 
 
