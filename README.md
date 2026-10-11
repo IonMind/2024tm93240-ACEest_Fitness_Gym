@@ -1,5 +1,10 @@
 # ACEest Fitness & Gym
 
+[![Release](https://img.shields.io/badge/release-v3.2.4-2f855a)](https://github.com/IonMind/2024tm93240-ACEest_Fitness_Gym/releases/tag/v3.2.4)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.x-222222?logo=flask&logoColor=white)
+[![Build and test](https://github.com/IonMind/2024tm93240-ACEest_Fitness_Gym/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/IonMind/2024tm93240-ACEest_Fitness_Gym/actions/workflows/main.yml)
+
 ACEest Fitness & Gym is a Flask application for managing fitness programs, client profiles, progress, workouts, and body metrics. The current application release is **v3.2.4**.
 
 ## Features
