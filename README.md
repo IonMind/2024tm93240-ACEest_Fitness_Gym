@@ -94,7 +94,7 @@ The workflow in `.github/workflows/main.yml` runs on every push and pull request
 4. Docker image build
 5. Pytest execution inside the Docker image
 
-Jenkins integration is reserved for a future assignment step and is not included yet.
+The `Jenkinsfile` defines the Jenkins BUILD stages: install Python dependencies, compile the application, and run Pytest with JUnit test results. The pipeline expects Jenkins to have the Docker Pipeline and JUnit plugins enabled, because it uses a `python:3.12-slim` Docker build agent.
 
 ## GitHub releases
 
