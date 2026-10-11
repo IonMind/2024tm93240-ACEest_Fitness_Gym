@@ -42,29 +42,15 @@ Create and activate a virtual environment, then install the dependencies:
 python -m venv .venv
 ```
 
-On Windows PowerShell:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-Start the application:
-
-```powershell
-python app.py
-```
-
 Open `http://127.0.0.1:5000` in a browser.
 
 The initial local administrator account is `admin` / `admin`. Set `ACEEST_ADMIN_USERNAME`, `ACEEST_ADMIN_PASSWORD`, and `ACEEST_SECRET_KEY` before deploying outside local development. The default account is created only when the users table is first initialized; passwords are stored as hashes.
 
 By default, the application stores data in `aceest_fitness.db`. To use another database path:
 
-```powershell
 $env:ACEEST_DB_PATH = "data\aceest_fitness.db"
 python app.py
-```
+
 
 ## Main routes
 
