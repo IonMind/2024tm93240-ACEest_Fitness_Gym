@@ -1,30 +1,14 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.12-slim'
-            reuseNode true
-        }
-    }
+    agent any
 
     options {
         disableConcurrentBuilds()
     }
 
     stages {
-        
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Install dependencies') {
             steps {
-                sh ''' 
-                pwd
-                ls -al
-                'python -m pip install --no-cache-dir -r requirements.txt'
-                '''
+                sh 'python -m pip install --user --no-cache-dir -r requirements.txt'
             }
         }
 
