@@ -36,20 +36,25 @@ The original gym reference metrics are also displayed: capacity of 150 users, ar
 
 ## Run locally
 
-Create and activate a virtual environment, then install the dependencies:
+From the project directory, create and activate a virtual environment, install the dependencies, and start the app:
 
-```bash
-python -m venv .venv
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+
+# Optional: use a custom database path
+# mkdir -p data
+# export ACEEST_DB_PATH="data/aceest_fitness.db"
+
+python app.py
 ```
 
 Open `http://127.0.0.1:5000` in a browser.
 
 The initial local administrator account is `admin` / `admin`. Set `ACEEST_ADMIN_USERNAME`, `ACEEST_ADMIN_PASSWORD`, and `ACEEST_SECRET_KEY` before deploying outside local development. The default account is created only when the users table is first initialized; passwords are stored as hashes.
 
-By default, the application stores data in `aceest_fitness.db`. To use another database path:
-
-$env:ACEEST_DB_PATH = "data\aceest_fitness.db"
-python app.py
+By default, the application stores data in `aceest_fitness.db`. Uncomment the optional commands above to use another database path.
 
 
 ## Main routes
