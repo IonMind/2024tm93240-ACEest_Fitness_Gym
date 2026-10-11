@@ -1,6 +1,14 @@
 import pytest
 
-from app import PROGRAMS, app, create_ai_program, database_connection, initialize_database
+from app import (
+    AI_PROGRAM_TEMPLATES,
+    PROGRAMS,
+    app,
+    create_ai_program,
+    database_connection,
+    initialize_database,
+    membership_for,
+)
 
 
 @pytest.fixture()
@@ -320,6 +328,77 @@ def test_membership_expiry_is_saved_and_invalid_dates_rejected(client):
     with database_connection() as connection:
         row = connection.execute("SELECT membership_expiry FROM clients WHERE name = ?", ("Mira",)).fetchone()
     assert row["membership_expiry"] == "2027-03-31"
+
+
+def test_membership_status_is_derived_from_expiry_date():
+    assert membership_for("2099-12-31")["status"] == "Active"
+    assert membership_for("2000-01-01")["status"] == "Expired"
+    assert membership_for(None)["status"] == "Not set"
+
+
+def test_membership_check_route_shows_status(client):
+    authenticated_client_post(
+        client,
+        "/client",
+        data={
+            "name": "Mira",
+            "program": "Beginner (BG)",
+            "membership_expiry": "2099-12-31",
+        },
+    )
+
+    response = authenticated_client_get(client, "/client/Mira/membership")
+
+    assert response.status_code == 200
+    assert b"Membership status" in response.data
+    assert b"Active" in response.data
+    assert b"days remaining" in response.data
+
+
+def test_random_ai_program_is_saved_without_changing_catalog_program(client, monkeypatch):
+    authenticated_client_post(
+        client,
+        "/client",
+        data={"name": "Asha", "program": "Fat Loss (FL) – 3 day"},
+    )
+    monkeypatch.setattr("app.random.choice", lambda options: options[0])
+
+    response = authenticated_client_post(client, "/client/Asha/generate-random-program", data={})
+
+    assert response.status_code == 200
+    assert b"AI program generated" in response.data
+    assert b"Full Body HIIT" in response.data
+    assert AI_PROGRAM_TEMPLATES["Fat Loss"][0].encode() in response.data
+    with database_connection() as connection:
+        client_row = connection.execute("SELECT program FROM clients WHERE name = ?", ("Asha",)).fetchone()
+        recommendation = connection.execute(
+            "SELECT program_type, program_detail FROM generated_programs WHERE client_name = ?",
+            ("Asha",),
+        ).fetchone()
+    assert client_row["program"] == "Fat Loss (FL) – 3 day"
+    assert recommendation["program_type"] == "Fat Loss"
+    assert recommendation["program_detail"] == "Full Body HIIT"
+
+
+def test_weight_history_is_rendered_as_chart(client):
+    authenticated_client_post(
+        client,
+        "/client",
+        data={"name": "Asha", "program": "Beginner (BG)"},
+    )
+    for measure_date, weight in (("2026-09-01", "72"), ("2026-10-01", "70")):
+        authenticated_client_post(
+            client,
+            "/metrics",
+            data={"client_name": "Asha", "date": measure_date, "weight": weight},
+        )
+
+    response = authenticated_client_get(client, "/client/Asha/workouts")
+
+    assert response.status_code == 200
+    assert b"Weight trend" in response.data
+    assert b"2026-09-01" in response.data
+    assert b"2026-10-01" in response.data
 
 
 @pytest.mark.parametrize(
