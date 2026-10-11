@@ -25,7 +25,7 @@ ACEest Fitness & Gym is a Flask application for managing fitness programs, clien
 - Weight trend chart from recorded body metrics
 - Downloadable PDF client reports
 - CSV export for saved clients
-- Docker image build and automated GitHub Actions validation
+- Non-root Docker image build and automated GitHub Actions validation
 
 The original gym reference metrics are also displayed: capacity of 150 users, area of 10,000 sq ft, and break-even at 250 members.
 
@@ -102,7 +102,7 @@ docker run --rm -p 5000:5000 aceest-fitness-gym
 
 ## Continuous integration
 
-The workflow in `.github/workflows/main.yml` runs on every push and pull request. It performs:
+The workflow in `.github/workflows/main.yml` runs on every push and pull request. The dedicated `.github/workflows/pr-check.yml` adds an explicit required-looking PR validation check on pull requests targeting `master`. The workflows perform:
 
 1. Python dependency installation
 2. Application compilation check
@@ -110,7 +110,9 @@ The workflow in `.github/workflows/main.yml` runs on every push and pull request
 4. Docker image build
 5. Pytest execution inside the Docker image
 
-The `Jenkinsfile` defines the Jenkins BUILD stages: install Python dependencies, compile the application, and run Pytest with JUnit test results. It uses the configured Jenkins agent (`agent any`); that agent needs Python and pip installed.
+The `Jenkinsfile` cleans the workspace, checks out the branch source, creates a fresh Python virtual environment, compiles the application, and runs Pytest with JUnit test results. Its Jenkins agent needs Python 3, `venv`, and shell support.
+
+For Jenkins, create a **Multibranch Pipeline** job connected to this GitHub repository and set the script path to `Jenkinsfile`. Scan the repository to discover branches, then build the branch job. A webhook is optional when branch scans and builds are started manually.
 
 ## GitHub releases
 
