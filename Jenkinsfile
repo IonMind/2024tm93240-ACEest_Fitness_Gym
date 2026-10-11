@@ -3,24 +3,33 @@ pipeline {
 
     options {
         disableConcurrentBuilds()
+        skipDefaultCheckout(true)
     }
 
     stages {
+        stage('Clean checkout') {
+            steps {
+                deleteDir()
+                checkout scm
+            }
+        }
+
         stage('Install dependencies') {
             steps {
-                sh 'python -m pip install --user --no-cache-dir -r requirements.txt'
+                sh 'python3 -m venv .venv'
+                sh '.venv/bin/python -m pip install --no-cache-dir -r requirements.txt'
             }
         }
 
         stage('Compile application') {
             steps {
-                sh 'python -m py_compile app.py tests/test_app.py'
+                sh '.venv/bin/python -m py_compile app.py tests/test_app.py'
             }
         }
 
         stage('Run tests') {
             steps {
-                sh 'python -m pytest -q --junitxml=test-results.xml'
+                sh '.venv/bin/python -m pytest -q --junitxml=test-results.xml'
             }
         }
     }
